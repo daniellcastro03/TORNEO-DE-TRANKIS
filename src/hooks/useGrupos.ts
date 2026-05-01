@@ -144,8 +144,11 @@ export function useGrupos(torneoId: string | undefined) {
 
     if (!torneoId) return;
 
+    // Unique suffix per device/tab to avoid Realtime channel conflicts
+    const sessionId = Math.random().toString(36).slice(2, 8);
+
     const channel = supabase
-      .channel(`grupos-${torneoId}`)
+      .channel(`grupos-${torneoId}-${sessionId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'grupos', filter: `torneo_id=eq.${torneoId}` }, () => fetchGrupos())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'partidos', filter: `torneo_id=eq.${torneoId}` }, () => fetchGrupos())
       .subscribe();

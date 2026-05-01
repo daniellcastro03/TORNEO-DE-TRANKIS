@@ -166,8 +166,9 @@ export function useMisPartidos(jugadorId: string | undefined) {
     fetchPartidos();
 
     if (!jugadorId) return;
+    const sessionId = Math.random().toString(36).slice(2, 8);
     const channel = supabase
-      .channel(`mis-partidos-${jugadorId}`)
+      .channel(`mis-partidos-${jugadorId}-${sessionId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'partidos' }, () => fetchPartidos())
       .subscribe();
     return () => { supabase.removeChannel(channel); };

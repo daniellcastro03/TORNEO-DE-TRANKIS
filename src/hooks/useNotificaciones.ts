@@ -30,9 +30,12 @@ export function useNotificaciones(jugadorId: string | undefined) {
 
     if (!jugadorId) return;
 
+    // Unique suffix per device/tab to avoid channel name conflicts
+    const sessionId = Math.random().toString(36).slice(2, 8);
+
     // Realtime: new notifications
     const channel = supabase
-      .channel(`notifs-${jugadorId}`)
+      .channel(`notifs-${jugadorId}-${sessionId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
