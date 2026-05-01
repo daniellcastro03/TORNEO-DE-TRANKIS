@@ -1,0 +1,484 @@
+/* ==========================================================
+   TORNEOS — List, Detail, Create
+   ========================================================== */
+
+/* ---------- Torneos List ---------- */
+.torneos-page {
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.torneos-filters {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+}
+
+.torneos-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* ---------- Tournament Card ---------- */
+.torneo-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: all var(--transition-normal);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.torneo-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-neon), var(--color-neon-dim));
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.torneo-card:hover {
+  border-color: var(--color-border-neon);
+  box-shadow: var(--shadow-neon);
+  transform: translateY(-2px);
+}
+
+.torneo-card:hover::before {
+  opacity: 1;
+}
+
+.torneo-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+  gap: var(--space-md);
+}
+
+.torneo-card-top h3 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--color-text);
+  flex: 1;
+}
+
+.torneo-card-badges {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.torneo-card-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.torneo-card-info .info-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.torneo-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.torneo-card-footer .players-bar {
+  flex: 1;
+  max-width: 200px;
+}
+
+.players-bar-track {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.players-bar-fill {
+  height: 100%;
+  background: var(--color-neon);
+  border-radius: var(--radius-full);
+  transition: width var(--transition-normal);
+}
+
+.players-bar-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* Estado badges */
+.badge-borrador {
+  background: rgba(136, 136, 136, 0.15);
+  color: #888;
+}
+
+.badge-inscripciones {
+  background: rgba(57, 255, 20, 0.15);
+  color: var(--color-neon);
+  border: 1px solid var(--color-border-neon);
+  animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 8px var(--color-neon-glow); }
+}
+
+.badge-en-curso {
+  background: rgba(255, 184, 0, 0.15);
+  color: var(--color-warning);
+}
+
+.badge-finalizado {
+  background: rgba(136, 136, 136, 0.1);
+  color: var(--color-text-muted);
+}
+
+/* ---------- Tournament Detail ---------- */
+.torneo-detail {
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.torneo-detail-header {
+  margin-bottom: var(--space-2xl);
+}
+
+.torneo-detail-header .back-btn {
+  margin-bottom: var(--space-md);
+}
+
+.torneo-detail-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.torneo-detail-title h1 {
+  flex: 1;
+}
+
+.torneo-detail-meta {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+/* Admin controls */
+.admin-controls {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding: var(--space-md);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.admin-controls .btn {
+  font-size: 0.85rem;
+}
+
+/* Inscriptions list */
+.inscripciones-section {
+  margin-bottom: var(--space-2xl);
+}
+
+.inscripciones-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.inscripcion-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.inscripcion-row:hover {
+  border-color: var(--color-border-hover);
+}
+
+.inscripcion-row .inscripcion-num {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  min-width: 28px;
+}
+
+.inscripcion-row .inscripcion-player {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1;
+}
+
+.inscripcion-row .inscripcion-player .player-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.inscripcion-row .inscripcion-team {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.inscripcion-row .inscripcion-team img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* Inscription CTA for players */
+.inscripcion-cta {
+  text-align: center;
+  padding: var(--space-2xl);
+}
+
+.inscripcion-cta h3 {
+  margin-bottom: var(--space-sm);
+  color: var(--color-neon);
+}
+
+.inscripcion-cta p {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+/* My inscription card */
+.mi-inscripcion-card {
+  background: rgba(57, 255, 20, 0.05);
+  border: 1px solid var(--color-border-neon);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.mi-inscripcion-card .mi-equipo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.mi-inscripcion-card .mi-equipo img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.mi-inscripcion-card .mi-equipo-info h4 {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--color-neon);
+}
+
+.mi-inscripcion-card .mi-equipo-info p {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+/* ---------- Create Tournament Form ---------- */
+.crear-torneo-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.crear-torneo-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.crear-torneo-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.crear-torneo-form .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+@media (max-width: 480px) {
+  .crear-torneo-form .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.crear-torneo-form .form-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* Toggle switch */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.toggle-row .toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-row .toggle-label span:first-child {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.toggle-row .toggle-label span:last-child {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border: none;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.toggle-switch.active {
+  background: var(--color-neon);
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: transform var(--transition-fast);
+}
+
+.toggle-switch.active::after {
+  transform: translateX(22px);
+}
+
+/* Criteria section */
+.criterios-section {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.criterios-section h4 {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-md);
+}
+
+/* Tipo torneo selector */
+.tipo-selector {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
+}
+
+@media (max-width: 480px) {
+  .tipo-selector {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.tipo-option {
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tipo-option:hover {
+  border-color: var(--color-border-hover);
+}
+
+.tipo-option.selected {
+  border-color: var(--color-neon);
+  background: rgba(57, 255, 20, 0.05);
+  box-shadow: var(--shadow-neon);
+}
+
+.tipo-option .tipo-emoji {
+  font-size: 1.8rem;
+  margin-bottom: var(--space-xs);
+  display: block;
+}
+
+.tipo-option .tipo-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: block;
+}
+
+.tipo-option .tipo-desc {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  display: block;
+}

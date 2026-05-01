@@ -1,0 +1,125 @@
+/* ==========================================================
+   PROFILE PAGE
+   ========================================================== */
+
+.profile-page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.profile-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: var(--space-2xl);
+}
+
+.profile-avatar-wrapper {
+  position: relative;
+  margin-bottom: var(--space-lg);
+}
+
+.profile-avatar-wrapper .avatar {
+  width: 100px;
+  height: 100px;
+  font-size: 2.5rem;
+}
+
+.profile-avatar-upload {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-neon);
+  border: 2px solid var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--color-bg);
+}
+
+.profile-avatar-upload:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-neon);
+}
+
+.profile-avatar-upload input {
+  display: none;
+}
+
+.profile-name {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  margin-bottom: var(--space-xs);
+}
+
+.profile-email {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.profile-role-badge {
+  margin-top: var(--space-sm);
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-2xl);
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.profile-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.profile-actions {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.profile-actions .btn {
+  flex: 1;
+}
+
+.profile-section-title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Upload progress */
+.upload-progress {
+  height: 3px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: var(--space-xs);
+}
+
+.upload-progress-bar {
+  height: 100%;
+  background: var(--color-neon);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}

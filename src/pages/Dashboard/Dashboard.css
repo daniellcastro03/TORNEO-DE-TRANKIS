@@ -1,0 +1,205 @@
+/* ==========================================================
+   DASHBOARD PAGE
+   ========================================================== */
+
+.dashboard {
+  padding: var(--space-xl);
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+}
+
+.dashboard-welcome {
+  margin-bottom: var(--space-2xl);
+}
+
+.dashboard-welcome .welcome-greeting {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.dashboard-welcome h1 {
+  font-size: 1.8rem;
+  color: var(--color-text);
+}
+
+.dashboard-welcome h1 span {
+  color: var(--color-neon);
+  text-shadow: 0 0 20px var(--color-neon-glow);
+}
+
+/* Quick Stats */
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-2xl);
+}
+
+.quick-stat {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  transition: all var(--transition-normal);
+}
+
+.quick-stat:hover {
+  border-color: var(--color-border-neon);
+  box-shadow: var(--shadow-neon);
+  transform: translateY(-2px);
+}
+
+.quick-stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-neon-subtle);
+  color: var(--color-neon);
+  flex-shrink: 0;
+}
+
+.quick-stat-info h3 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--color-text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.quick-stat-info p {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Sections */
+.dashboard-section {
+  margin-bottom: var(--space-2xl);
+}
+
+.dashboard-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.dashboard-section-header h2 {
+  font-size: 1.1rem;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.dashboard-section-header h2 svg {
+  color: var(--color-neon);
+}
+
+/* Active tournaments grid */
+.tournaments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-md);
+}
+
+.tournament-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.tournament-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-neon), var(--color-neon-dim));
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.tournament-card:hover {
+  border-color: var(--color-border-neon);
+  box-shadow: var(--shadow-neon);
+  transform: translateY(-2px);
+}
+
+.tournament-card:hover::before {
+  opacity: 1;
+}
+
+.tournament-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.tournament-card-header h3 {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+
+.tournament-card-meta {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-top: var(--space-sm);
+}
+
+.tournament-card-meta .badge {
+  font-size: 0.7rem;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: var(--space-3xl) var(--space-xl);
+  color: var(--color-text-muted);
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-md);
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.empty-state p {
+  font-size: 0.9rem;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dashboard-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-stats {
+    grid-template-columns: 1fr;
+  }
+}

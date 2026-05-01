@@ -1,0 +1,209 @@
+/* ==========================================================
+   MIS PARTIDOS — Player match history
+   ========================================================== */
+
+.mis-partidos-page {
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+/* Stats row */
+.mis-partidos-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+}
+
+@media (max-width: 640px) {
+  .mis-partidos-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Match card */
+.match-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-sm);
+  transition: all var(--transition-fast);
+}
+
+.match-card:hover {
+  border-color: var(--color-border-hover);
+}
+
+.match-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.match-card-header .match-torneo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.match-card-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.match-team {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  text-align: center;
+}
+
+.match-team img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.match-team .match-team-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  max-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-team .match-player-name {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.match-team.is-me .match-team-name {
+  color: var(--color-neon);
+}
+
+.match-score-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 70px;
+}
+
+.match-score {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.match-score .score-num {
+  min-width: 24px;
+  text-align: center;
+}
+
+.match-score .score-divider {
+  color: var(--color-text-muted);
+  font-size: 1rem;
+}
+
+.match-score.pendiente {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.match-result-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.match-result-badge.result-win {
+  background: rgba(57, 255, 20, 0.15);
+  color: var(--color-neon);
+}
+
+.match-result-badge.result-draw {
+  background: rgba(136, 136, 136, 0.15);
+  color: #888;
+}
+
+.match-result-badge.result-loss {
+  background: rgba(255, 59, 59, 0.15);
+  color: var(--color-danger);
+}
+
+.match-fase {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Filter tabs */
+.matches-filter {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  overflow-x: auto;
+}
+
+/* ---------- Admin Result Modal ---------- */
+.result-modal-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-lg) 0;
+}
+
+.result-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1;
+}
+
+.result-team img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.result-team .team-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.result-score-input {
+  width: 60px !important;
+  height: 60px !important;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.5rem !important;
+  font-weight: 700;
+  padding: 0 !important;
+}
+
+.result-divider {
+  font-size: 1.5rem;
+  color: var(--color-text-muted);
+  font-weight: 300;
+}
