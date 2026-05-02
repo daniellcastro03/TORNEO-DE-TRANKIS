@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
-import type { Jugador, RolUsuario } from '../types/database';
+import type { Jugador } from '../types/database';
 
 interface AuthContextType {
   user: User | null;
@@ -23,66 +23,116 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [jugador, setJugador] = useState<Jugador | null>(null);
   const [loading, setLoading] = useState(true);
+  const initializedRef = useRef(false);
 
+  // ─── Fetch jugador profile ───────────────────────────────────────────────
   const fetchJugador = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('jugadores')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (!error && data) {
-      setJugador(data as Jugador);
+    try {
+      const { data } = await supabase
+        .from('jugadores')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (data) setJugador(data as Jugador);
+    } catch {
+      // Silently ignore — profile may not exist yet right after signup
     }
   };
 
   const refreshProfile = async () => {
-    if (user) {
-      await fetchJugador(user.id);
-    }
+    const { data: { session: s } } = await supabase.auth.getSession();
+    if (s?.user) await fetchJugador(s.user.id);
   };
 
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        fetchJugador(s.user.id);
-      }
-      setLoading(false);
-    });
+  // ─── Helper para limpiar todo el estado ─────────────────────────────────
+  const clearAuthState = () => {
+    setSession(null);
+    setUser(null);
+    setJugador(null);
+  };
 
-    // Listen for auth changes
+  // ─── Bootstrap ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    // Safety timeout: siempre desbloquea la pantalla después de 5s
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
+      async (event, s) => {
+
+        // Manejar SIGNED_OUT explícitamente
+        if (event === 'SIGNED_OUT') {
+          clearAuthState();
+          if (!initializedRef.current) {
+            initializedRef.current = true;
+            clearTimeout(timeout);
+            setLoading(false);
+          }
+          return;
+        }
+
         setSession(s);
         setUser(s?.user ?? null);
+
+        // Desbloquear loading solo en el primer evento
+        if (!initializedRef.current) {
+          initializedRef.current = true;
+          clearTimeout(timeout);
+          setLoading(false);
+        }
+
         if (s?.user) {
           await fetchJugador(s.user.id);
         } else {
           setJugador(null);
         }
-        setLoading(false);
       }
     );
 
-    // Refresh profile when tab regains focus
-    // This ensures role changes made via SQL Editor are picked up
-    const handleFocus = () => {
-      supabase.auth.getSession().then(({ data: { session: s } }) => {
-        if (s?.user) fetchJugador(s.user.id);
-      });
+    // Trigger inicial de sesión
+    supabase.auth.getSession().catch(() => {
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        clearTimeout(timeout);
+        setLoading(false);
+      }
+    });
+
+    // Sincronizar logout entre pestañas via localStorage
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'torneitos-session' && e.newValue === null) {
+        clearAuthState();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Refresh profile cuando la pestaña recupera el foco
+    const handleFocus = async () => {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      if (s?.user) {
+        fetchJugador(s.user.id);
+      } else {
+        // Token expiró o se cerró sesión en otra pestaña
+        clearAuthState();
+      }
     };
     window.addEventListener('focus', handleFocus);
 
     return () => {
+      clearTimeout(timeout);
       subscription.unsubscribe();
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
-  const signUp = async (email: string, password: string, nombre: string): Promise<{ error: string | null; needsConfirmation?: boolean }> => {
+  // ─── Auth actions ────────────────────────────────────────────────────────
+  const signUp = async (
+    email: string,
+    password: string,
+    nombre: string
+  ): Promise<{ error: string | null; needsConfirmation?: boolean }> => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -94,17 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (error) return { error: error.message };
 
-    // When confirmation is needed, user exists but session is null
     const needsConfirmation = !!(data.user && !data.session);
 
-    // Profile is created automatically by the DB trigger handle_new_user()
-    // We just need to load it if the session is ready (no email confirmation required)
     if (data.user && !needsConfirmation) {
-      // Wait a moment for the trigger to execute, then load the profile
       await new Promise((r) => setTimeout(r, 800));
       await fetchJugador(data.user.id);
 
-      // Send welcome notification (best-effort, don't block on failure)
       try {
         await supabase.from('notificaciones').insert({
           jugador_id: data.user.id,
@@ -113,14 +158,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           cuerpo: `Hola ${nombre}, tu cuenta fue creada. ¡Explora los torneos y elige tu equipo!`,
           leida: false,
         });
-      } catch {
-        // Silently ignore — notification is not critical
-      }
+      } catch { /* ignore */ }
     }
 
     return { error: null, needsConfirmation };
   };
-
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -135,19 +177,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    setJugador(null);
+    clearAuthState();
   };
 
   const updateProfile = async (updates: Partial<Pick<Jugador, 'nombre' | 'foto_url'>>) => {
     if (!user) return { error: 'No autenticado' };
-
     const { error } = await supabase
       .from('jugadores')
       .update(updates)
       .eq('id', user.id);
-
     if (error) return { error: error.message };
-
     await fetchJugador(user.id);
     return { error: null };
   };
