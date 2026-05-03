@@ -14,6 +14,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<Jugador, 'nombre' | 'foto_url'>>) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
+  isGuest: boolean;
+  enterGuestMode: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [jugador, setJugador] = useState<Jugador | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(() => sessionStorage.getItem('torneitos-guest') === 'true');
   const initializedRef = useRef(false);
 
   // ─── Fetch jugador profile ───────────────────────────────────────────────
@@ -49,6 +52,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setUser(null);
     setJugador(null);
+    setIsGuest(false);
+    sessionStorage.removeItem('torneitos-guest');
+  };
+
+  const enterGuestMode = () => {
+    setIsGuest(true);
+    sessionStorage.setItem('torneitos-guest', 'true');
   };
 
   // ─── Bootstrap ──────────────────────────────────────────────────────────
@@ -99,14 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Sincronizar logout entre pestañas via localStorage
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'torneitos-session' && e.newValue === null) {
-        clearAuthState();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
     // Refresh profile cuando la pestaña recupera el foco
     const handleFocus = async () => {
       const { data: { session: s } } = await supabase.auth.getSession();
@@ -123,7 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeout);
       subscription.unsubscribe();
       window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
@@ -206,6 +207,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         updateProfile,
         refreshProfile,
+        isGuest,
+        enterGuestMode,
       }}
     >
       {children}

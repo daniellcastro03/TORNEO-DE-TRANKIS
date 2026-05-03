@@ -17,10 +17,11 @@ export const supabase = createClient(
   supabaseAnonKey || 'placeholder-key',
   {
     auth: {
-      persistSession: true,       // Guarda la sesión en localStorage
-      autoRefreshToken: true,     // Renueva el token automáticamente
-      detectSessionInUrl: true,   // Detecta token de confirmación en URL
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
       storageKey: 'torneitos-session',
+      storage: window.sessionStorage,
     },
   }
 );

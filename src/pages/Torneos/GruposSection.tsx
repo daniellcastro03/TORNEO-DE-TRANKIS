@@ -255,34 +255,55 @@ function GrupoCard({
             <Gamepad2 size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
             Partidos ({grupoPartidos.filter((p) => p.estado === 'finalizado').length}/{grupoPartidos.length})
           </h4>
-          {grupoPartidos.map((p) => {
-            const localInfo = grupo.jugadores.find((j) => j.jugador_id === p.jugador_local_id);
-            const visitInfo = grupo.jugadores.find((j) => j.jugador_id === p.jugador_visitante_id);
+          {Object.entries(
+            grupoPartidos.reduce((acc, p) => {
+              const f = p.fecha || '?';
+              if (!acc[f]) acc[f] = [];
+              acc[f].push(p);
+              return acc;
+            }, {} as Record<string, Partido[]>)
+          )
+            .sort(([a], [b]) => (a === '?' ? 1 : b === '?' ? -1 : Number(a) - Number(b)))
+            .map(([fecha, ps]) => {
+              const isHabilitada = (criterios.fechas_habilitadas || ['1']).includes(fecha);
+              
+              return (
+                <div key={fecha} style={{ marginBottom: '1rem' }}>
+                  <div style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-neon)', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    Jornada {fecha} {!isHabilitada && <span style={{ color: 'var(--color-text-muted)' }}>- Bloqueada 🔒</span>}
+                  </div>
+                  
+                  {ps.map((p) => {
+                    const localInfo = grupo.jugadores.find((j) => j.jugador_id === p.jugador_local_id);
+                    const visitInfo = grupo.jugadores.find((j) => j.jugador_id === p.jugador_visitante_id);
 
-            return (
-              <div key={p.id} className="partido-row">
-                <div className="partido-equipo local">
-                  <span>{localInfo?.equipo_nombre || localInfo?.jugador_nombre || '?'}</span>
-                  {localInfo?.equipo_escudo && <img src={localInfo.equipo_escudo} alt="" />}
+                    return (
+                      <div key={p.id} className="partido-row" style={{ opacity: isHabilitada ? 1 : 0.6 }}>
+                        <div className="partido-equipo local">
+                          <span>{localInfo?.equipo_nombre || localInfo?.jugador_nombre || '?'}</span>
+                          {localInfo?.equipo_escudo && <img src={localInfo.equipo_escudo} alt="" />}
+                        </div>
+                        <div className={`partido-score ${p.estado === 'finalizado' ? 'finalizado' : 'pendiente'}`}>
+                          {p.estado === 'finalizado' ? (
+                            <>
+                              <span>{p.goles_local}</span>
+                              <span className="score-divider">-</span>
+                              <span>{p.goles_visitante}</span>
+                            </>
+                          ) : (
+                            <span>vs</span>
+                          )}
+                        </div>
+                        <div className="partido-equipo visitante">
+                          {visitInfo?.equipo_escudo && <img src={visitInfo.equipo_escudo} alt="" />}
+                          <span>{visitInfo?.equipo_nombre || visitInfo?.jugador_nombre || '?'}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className={`partido-score ${p.estado === 'finalizado' ? 'finalizado' : 'pendiente'}`}>
-                  {p.estado === 'finalizado' ? (
-                    <>
-                      <span>{p.goles_local}</span>
-                      <span className="score-divider">-</span>
-                      <span>{p.goles_visitante}</span>
-                    </>
-                  ) : (
-                    <span>vs</span>
-                  )}
-                </div>
-                <div className="partido-equipo visitante">
-                  {visitInfo?.equipo_escudo && <img src={visitInfo.equipo_escudo} alt="" />}
-                  <span>{visitInfo?.equipo_nombre || visitInfo?.jugador_nombre || '?'}</span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       )}
     </div>

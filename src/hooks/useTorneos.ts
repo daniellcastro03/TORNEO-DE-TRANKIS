@@ -233,6 +233,33 @@ export async function eliminarTorneo(
   return { error: error?.message || null };
 }
 
+export async function habilitarFecha(
+  torneoId: string,
+  fecha: string
+): Promise<{ error: string | null }> {
+  const { data: torneo, error: tErr } = await supabase
+    .from('torneos')
+    .select('criterios_json')
+    .eq('id', torneoId)
+    .single();
+
+  if (tErr) return { error: tErr.message };
+
+  const criterios = torneo.criterios_json || {};
+  const habilitadas = criterios.fechas_habilitadas || [];
+  
+  if (!habilitadas.includes(fecha)) {
+    criterios.fechas_habilitadas = [...habilitadas, fecha];
+    const { error } = await supabase
+      .from('torneos')
+      .update({ criterios_json: criterios })
+      .eq('id', torneoId);
+    return { error: error?.message || null };
+  }
+  
+  return { error: null };
+}
+
 // =============================================
 // Inscription Functions
 // =============================================

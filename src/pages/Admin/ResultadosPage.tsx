@@ -84,7 +84,7 @@ export default function ResultadosPage() {
 
           {selectedTorneo && (
             <PartidosEditor
-              torneoId={selectedTorneo}
+              torneo={torneosEnCurso.find((t) => t.id === selectedTorneo)!}
               showOnlyPending={showOnlyPending}
               showToast={showToast}
             />
@@ -96,22 +96,24 @@ export default function ResultadosPage() {
 }
 
 // ========================
-// Match Editor per Tournament
-// ========================
 function PartidosEditor({
-  torneoId,
+  torneo,
   showOnlyPending,
   showToast,
 }: {
-  torneoId: string;
+  torneo: any;
   showOnlyPending: boolean;
   showToast: (msg: string, type: 'success' | 'error') => void;
 }) {
+  const torneoId = torneo.id;
   const { grupos, partidos, loading, refetch } = useGrupos(torneoId);
   const [editingMatch, setEditingMatch] = useState<string | null>(null);
   const [golesLocal, setGolesLocal] = useState(0);
   const [golesVisitante, setGolesVisitante] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [openingDate, setOpeningDate] = useState<string | null>(null);
+  
+  const fechasHabilitadas = torneo.criterios_json?.fechas_habilitadas || ['1'];
 
   // Independent player map from inscriptions (resolves knockout players)
   const [playerMap, setPlayerMap] = useState<Record<string, { nombre: string; escudo: string | null }>>({});
@@ -197,6 +199,20 @@ function PartidosEditor({
       showToast(error, 'error');
     } else {
       showToast('Resultado reseteado', 'success');
+      refetch();
+    }
+  };
+
+  const handleHabilitar = async (fecha: string) => {
+    if (!confirm(`¿Estás seguro de abrir y habilitar todos los partidos de la Jornada ${fecha}?`)) return;
+    setOpeningDate(fecha);
+    const { habilitarFecha } = await import('../../hooks/useTorneos');
+    const { error } = await habilitarFecha(torneoId, fecha);
+    setOpeningDate(null);
+    if (error) {
+      showToast(error, 'error');
+    } else {
+      showToast(`¡Jornada ${fecha} habilitada!`, 'success');
       refetch();
     }
   };
@@ -297,9 +313,15 @@ function PartidosEditor({
     const localEscudo = getPlayerEscudo(p.jugador_local_id);
     const visitEscudo = getPlayerEscudo(p.jugador_visitante_id);
     const isEditing = editingMatch === p.id;
+    const isHabilitado = p.fase !== 'grupos' || !p.fecha || fechasHabilitadas.includes(p.fecha);
 
     return (
-      <div key={p.id} className="match-card" style={{ marginBottom: '0.5rem' }}>
+      <div key={p.id} className="match-card" style={{ marginBottom: '0.5rem', opacity: isHabilitado ? 1 : 0.6 }}>
+        {p.fase === 'grupos' && p.fecha && (
+          <div style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--color-neon)', marginBottom: '4px' }}>
+            Jornada {p.fecha} {isHabilitado ? '' : '(Bloqueada)'}
+          </div>
+        )}
         <div className="match-card-body">
           <div className="match-team">
             {localEscudo ? (
@@ -352,6 +374,14 @@ function PartidosEditor({
                 Cancelar
               </button>
             </>
+          ) : !isHabilitado && p.fecha ? (
+            <button 
+              className={`btn btn-primary btn-sm ${openingDate === p.fecha ? 'btn-loading' : ''}`} 
+              onClick={() => handleHabilitar(p.fecha!)}
+              disabled={openingDate === p.fecha}
+            >
+              Abrir Jornada {p.fecha}
+            </button>
           ) : (
             <>
               <button className="btn btn-secondary btn-sm" onClick={() => startEdit(p)}>

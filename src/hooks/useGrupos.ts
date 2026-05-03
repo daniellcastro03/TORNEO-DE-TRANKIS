@@ -248,6 +248,20 @@ export async function sortearGrupos(
   jugadorIds: string[]
 ): Promise<{ error: string | null }> {
   try {
+    // Get tournament config
+    const { data: torneo, error: tErr } = await supabase
+      .from('torneos')
+      .select('criterios_json')
+      .eq('id', torneoId)
+      .single();
+    if (tErr) throw tErr;
+
+    const criterios = torneo.criterios_json || {};
+    criterios.fechas_habilitadas = ['1']; // Habilitar la Fecha 1 inicialmente
+
+    // Actualizar el torneo con la nueva config de fechas
+    await supabase.from('torneos').update({ criterios_json: criterios }).eq('id', torneoId);
+
     // Shuffle players
     const shuffled = [...jugadorIds].sort(() => Math.random() - 0.5);
 
@@ -317,27 +331,42 @@ export async function sortearGrupos(
   }
 }
 
-// Generate round-robin matches for a group
 function generateRoundRobin(
   jugadorIds: string[],
   torneoId: string,
   grupoId: string
 ): any[] {
   const matches: any[] = [];
-
-  for (let i = 0; i < jugadorIds.length; i++) {
-    for (let j = i + 1; j < jugadorIds.length; j++) {
-      matches.push({
-        torneo_id: torneoId,
-        grupo_id: grupoId,
-        jugador_local_id: jugadorIds[i],
-        jugador_visitante_id: jugadorIds[j],
-        goles_local: null,
-        goles_visitante: null,
-        estado: 'pendiente' as const,
-        fase: 'grupos' as const,
-      });
+  const players = [...jugadorIds];
+  
+  if (players.length % 2 !== 0) {
+    players.push('BYE');
+  }
+  
+  const n = players.length;
+  
+  for (let round = 1; round <= n - 1; round++) {
+    for (let i = 0; i < n / 2; i++) {
+      const local = players[i];
+      const visitante = players[n - 1 - i];
+      
+      if (local !== 'BYE' && visitante !== 'BYE') {
+        matches.push({
+          torneo_id: torneoId,
+          grupo_id: grupoId,
+          jugador_local_id: local,
+          jugador_visitante_id: visitante,
+          goles_local: null,
+          goles_visitante: null,
+          estado: 'pendiente' as const,
+          fase: 'grupos' as const,
+          fecha: round.toString(),
+        });
+      }
     }
+    // Rotar para la siguiente fecha (mantener el primero fijo)
+    const last = players.pop()!;
+    players.splice(1, 0, last);
   }
 
   return matches;

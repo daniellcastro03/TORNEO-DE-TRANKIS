@@ -19,8 +19,10 @@ import {
   Shield,
   Sparkles,
   ArrowLeft,
+  Upload,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 import './Catalogo.css';
 
 const TIPO_CONFIG: Record<TipoTorneo | 'todos', { label: string; icon: any; emoji: string }> = {
@@ -261,6 +263,7 @@ export default function CatalogoAdminPage() {
       {/* Add/Edit Modal */}
       {showModal && (
         <EquipoModal
+          key={editingEquipo ? editingEquipo.id : 'new'}
           equipo={editingEquipo}
           onClose={() => { setShowModal(false); setEditingEquipo(null); }}
           onSaved={handleSaved}
@@ -317,6 +320,38 @@ function EquipoModal({ equipo, onClose, onSaved, showToast }: EquipoModalProps) 
   const [tipo, setTipo] = useState<TipoTorneo>(equipo?.tipo_torneo ?? 'champions');
   const [liga, setLiga] = useState(equipo?.liga ?? '');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('equipos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('equipos')
+        .getPublicUrl(filePath);
+
+      setEscudoUrl(publicUrl);
+    } catch (error: any) {
+      showToast('Error al subir imagen. Verifica los permisos del bucket de equipos.', 'error');
+      console.error('Upload error:', error);
+    } finally {
+      setUploading(false);
+      // Reset input so the same file can be uploaded again if needed
+      if (e.target) e.target.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -380,13 +415,32 @@ function EquipoModal({ equipo, onClose, onSaved, showToast }: EquipoModalProps) 
           </div>
 
           <div className="form-group">
-            <label htmlFor="equipo-escudo">URL del escudo (opcional)</label>
+            <label>Escudo del Equipo</label>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <button 
+                type="button" 
+                className={`btn btn-secondary btn-sm ${uploading ? 'btn-loading' : ''}`}
+                onClick={() => document.getElementById('escudo-upload')?.click()}
+                disabled={uploading}
+                style={{ flex: 1, display: 'flex', justifyContent: 'center' }}
+              >
+                <Upload size={16} /> Subir Imagen
+              </button>
+              <input
+                id="escudo-upload"
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+              />
+            </div>
+            <div style={{ textAlign: 'center', margin: '0.5rem 0', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>o</div>
             <input
               id="equipo-escudo"
               type="url"
               value={escudoUrl}
               onChange={(e) => setEscudoUrl(e.target.value)}
-              placeholder="https://..."
+              placeholder="Ingresar URL de la imagen..."
             />
             {escudoUrl && (
               <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>

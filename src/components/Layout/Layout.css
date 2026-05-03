@@ -128,7 +128,8 @@
   font-weight: 500;
   transition: all var(--transition-fast);
   position: relative;
-  min-width: 60px;
+  min-width: 45px;
+  flex: 1;
 }
 
 .bottom-nav-item:hover {

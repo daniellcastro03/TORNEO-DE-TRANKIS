@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, enterGuestMode } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,6 +89,19 @@ export default function LoginPage() {
             id="login-submit"
           >
             Iniciar Sesión
+          </button>
+
+          <div className="auth-divider">o</div>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-block btn-lg"
+            onClick={() => {
+              enterGuestMode();
+              navigate('/');
+            }}
+          >
+            Acceder como invitado
           </button>
         </form>
 

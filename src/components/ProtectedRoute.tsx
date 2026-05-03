@@ -5,10 +5,11 @@ import type { ReactNode } from 'react';
 interface ProtectedRouteProps {
   children: ReactNode;
   requireAdmin?: boolean;
+  requireAuth?: boolean;
 }
 
-export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, loading, isAdmin } = useAuth();
+export default function ProtectedRoute({ children, requireAdmin = false, requireAuth = true }: ProtectedRouteProps) {
+  const { user, loading, isAdmin, isGuest } = useAuth();
 
   if (loading) {
     return (
@@ -19,7 +20,13 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
     );
   }
 
-  if (!user) {
+  // If requires full auth (not guest)
+  if (requireAuth && !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If it doesn't require full auth (so guest is OK) but user is not logged in AND not guest
+  if (!requireAuth && !user && !isGuest) {
     return <Navigate to="/login" replace />;
   }
 

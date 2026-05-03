@@ -58,6 +58,7 @@ export interface CriteriosClasificacion {
   hay_tercero_cuarto: boolean;
   ida_vuelta: boolean;                    // Fase de grupos: ¿ida y vuelta?
   partido_unico_eliminatorias: boolean;   // Fase eliminatoria: ¿partido único?
+  fechas_habilitadas?: string[];          // Fechas/Jornadas que están abiertas para jugar
 }
 
 export interface TorneoInscripcion {
@@ -112,6 +113,18 @@ export interface PushSubscription {
   keys_json: Record<string, string>;
 }
 
+export interface TrofeoSalonFama {
+  id: string;
+  jugador_id: string;
+  torneo_id: string | null;
+  titulo: string;
+  descripcion: string | null;
+  tipo_trofeo: string;
+  created_at: string;
+  jugador?: { nombre: string; foto_url: string | null };
+  torneo?: { nombre: string };
+}
+
 // Supabase Database interface for typed client
 export interface Database {
   public: {
@@ -163,6 +176,11 @@ export interface Database {
       };
       push_subscriptions: {
         Row: PushSubscription;
+        Insert: any;
+        Update: any;
+      };
+      salon_fama: {
+        Row: TrofeoSalonFama;
         Insert: any;
         Update: any;
       };

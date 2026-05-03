@@ -11,6 +11,7 @@ import CatalogoPublicoPage from './pages/Equipos/CatalogoPublicoPage';
 import JugadoresPage from './pages/Jugadores/JugadoresPage';
 import MisPartidosPage from './pages/MisPartidos/MisPartidosPage';
 import ProfilePage from './pages/Profile/ProfilePage';
+import SalonFamaPage from './pages/SalonFama/SalonFamaPage';
 import AdminPage from './pages/Admin/AdminPage';
 import CatalogoAdminPage from './pages/Admin/CatalogoAdminPage';
 import CrearTorneoPage from './pages/Admin/CrearTorneoPage';
@@ -42,10 +43,10 @@ function AppRoutes() {
         element={user ? <Navigate to="/" replace /> : <RegisterPage />}
       />
 
-      {/* Protected routes within main layout */}
+      {/* Protected routes within main layout (allow guests by default) */}
       <Route
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requireAuth={false}>
             <MainLayout />
           </ProtectedRoute>
         }
@@ -55,8 +56,23 @@ function AppRoutes() {
         <Route path="/torneos/:id" element={<TorneoDetallePage />} />
         <Route path="/jugadores" element={<JugadoresPage />} />
         <Route path="/catalogo" element={<CatalogoPublicoPage />} />
-        <Route path="/mis-partidos" element={<MisPartidosPage />} />
-        <Route path="/perfil" element={<ProfilePage />} />
+        <Route path="/salon-fama" element={<SalonFamaPage />} />
+        <Route
+          path="/mis-partidos"
+          element={
+            <ProtectedRoute requireAuth={true}>
+              <MisPartidosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/perfil"
+          element={
+            <ProtectedRoute requireAuth={true}>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/admin"
           element={
