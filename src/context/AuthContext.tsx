@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import type { Jugador } from '../types/database';
@@ -25,108 +25,112 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [jugador, setJugador] = useState<Jugador | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isGuest, setIsGuest] = useState(() => sessionStorage.getItem('torneitos-guest') === 'true');
-  const initializedRef = useRef(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const mountedRef = useRef(true);
 
   // ─── Fetch jugador profile ───────────────────────────────────────────────
-  const fetchJugador = async (userId: string) => {
+  const fetchJugador = useCallback(async (userId: string) => {
     try {
       const { data } = await supabase
         .from('jugadores')
         .select('*')
         .eq('id', userId)
         .single();
-      if (data) setJugador(data as Jugador);
+      if (data && mountedRef.current) setJugador(data as Jugador);
     } catch {
       // Silently ignore — profile may not exist yet right after signup
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     const { data: { session: s } } = await supabase.auth.getSession();
     if (s?.user) await fetchJugador(s.user.id);
-  };
+  }, [fetchJugador]);
 
   // ─── Helper para limpiar todo el estado ─────────────────────────────────
-  const clearAuthState = () => {
+  const clearAuthState = useCallback(() => {
     setSession(null);
     setUser(null);
     setJugador(null);
     setIsGuest(false);
-    sessionStorage.removeItem('torneitos-guest');
-  };
+    localStorage.removeItem('torneitos-guest');
+  }, []);
 
-  const enterGuestMode = () => {
+  const enterGuestMode = useCallback(() => {
     setIsGuest(true);
-    sessionStorage.setItem('torneitos-guest', 'true');
-  };
+    localStorage.setItem('torneitos-guest', 'true');
+  }, []);
 
-  // ─── Bootstrap ──────────────────────────────────────────────────────────
+  // ─── Bootstrap ───────────────────────────────────────────────────────────
+  // CRÍTICO: primero lee getSession() para restaurar sesión del localStorage,
+  // luego configura el listener solo para cambios FUTUROS.
+  // Si hacemos lo contrario, el primer evento null del listener nos manda a invitado.
   useEffect(() => {
-    // Safety timeout: siempre desbloquea la pantalla después de 5s
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 5000);
+    mountedRef.current = true;
 
+    // Timeout de seguridad: desbloquea la pantalla si algo falla
+    const timeout = setTimeout(() => {
+      if (mountedRef.current) setLoading(false);
+    }, 6000);
+
+    async function init() {
+      try {
+        // Supabase lee la sesión desde localStorage de forma sincrónica aquí
+        const { data: { session: storedSession } } = await supabase.auth.getSession();
+
+        if (!mountedRef.current) return;
+
+        if (storedSession?.user) {
+          // ✅ Sesión encontrada → restaurar sin pasar por login
+          setSession(storedSession);
+          setUser(storedSession.user);
+          setIsGuest(false);
+          localStorage.removeItem('torneitos-guest');
+          // Cargar perfil en segundo plano (no bloquea la UI)
+          fetchJugador(storedSession.user.id);
+        } else {
+          // Sin sesión activa → revisar si había modo invitado guardado
+          const wasGuest = localStorage.getItem('torneitos-guest') === 'true';
+          if (wasGuest) setIsGuest(true);
+        }
+      } catch (err) {
+        console.error('[Auth] Error en init:', err);
+      } finally {
+        clearTimeout(timeout);
+        if (mountedRef.current) setLoading(false);
+      }
+    }
+
+    init();
+
+    // Solo escucha eventos FUTUROS (login nuevo, logout, refresh automático de token)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, s) => {
+        if (!mountedRef.current) return;
 
-        // Manejar SIGNED_OUT explícitamente
         if (event === 'SIGNED_OUT') {
           clearAuthState();
-          if (!initializedRef.current) {
-            initializedRef.current = true;
-            clearTimeout(timeout);
-            setLoading(false);
-          }
           return;
         }
 
-        setSession(s);
-        setUser(s?.user ?? null);
-
-        // Desbloquear loading solo en el primer evento
-        if (!initializedRef.current) {
-          initializedRef.current = true;
-          clearTimeout(timeout);
-          setLoading(false);
-        }
-
-        if (s?.user) {
-          await fetchJugador(s.user.id);
-        } else {
-          setJugador(null);
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          setSession(s);
+          setUser(s?.user ?? null);
+          if (s?.user) {
+            setIsGuest(false);
+            localStorage.removeItem('torneitos-guest');
+            fetchJugador(s.user.id);
+          }
         }
       }
     );
 
-    // Trigger inicial de sesión
-    supabase.auth.getSession().catch(() => {
-      if (!initializedRef.current) {
-        initializedRef.current = true;
-        clearTimeout(timeout);
-        setLoading(false);
-      }
-    });
-
-    // Refresh profile cuando la pestaña recupera el foco
-    const handleFocus = async () => {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      if (s?.user) {
-        fetchJugador(s.user.id);
-      } else {
-        // Token expiró o se cerró sesión en otra pestaña
-        clearAuthState();
-      }
-    };
-    window.addEventListener('focus', handleFocus);
-
     return () => {
+      mountedRef.current = false;
       clearTimeout(timeout);
       subscription.unsubscribe();
-      window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [fetchJugador, clearAuthState]);
 
   // ─── Auth actions ────────────────────────────────────────────────────────
   const signUp = async (

@@ -52,36 +52,56 @@ export default function JugadoresPage() {
         const matches = (allMatchesRaw as Array<{ jugador_local_id: string; jugador_visitante_id: string; goles_local: number | null; goles_visitante: number | null; estado: string; torneo_id: string }>) || [];
         const inscs = (inscripcionesRaw as Array<{ jugador_id: string; torneo_id: string }>) || [];
 
-        const stats: JugadorStats[] = players.map((p) => {
-          const myMatches = matches.filter(
-            (m) => m.jugador_local_id === p.id || m.jugador_visitante_id === p.id
-          );
+        const matchStats = new Map();
+        players.forEach(p => matchStats.set(p.id, { v: 0, e: 0, d: 0, gf: 0, gc: 0, matches: 0 }));
 
-          let v = 0, e = 0, d = 0, gf = 0, gc = 0;
-          for (const m of myMatches) {
-            if (m.goles_local === null || m.goles_visitante === null) continue;
-            const isLocal = m.jugador_local_id === p.id;
-            const myGoals = isLocal ? m.goles_local : m.goles_visitante;
-            const theirGoals = isLocal ? m.goles_visitante : m.goles_local;
-            gf += myGoals;
-            gc += theirGoals;
-            if (myGoals > theirGoals) v++;
-            else if (myGoals === theirGoals) e++;
-            else d++;
+        for (const m of matches) {
+          if (m.goles_local === null || m.goles_visitante === null) continue;
+          
+          const gl = m.goles_local;
+          const gv = m.goles_visitante;
+          
+          if (matchStats.has(m.jugador_local_id)) {
+            const s = matchStats.get(m.jugador_local_id);
+            s.matches++;
+            s.gf += gl;
+            s.gc += gv;
+            if (gl > gv) s.v++;
+            else if (gl === gv) s.e++;
+            else s.d++;
           }
+          
+          if (matchStats.has(m.jugador_visitante_id)) {
+            const s = matchStats.get(m.jugador_visitante_id);
+            s.matches++;
+            s.gf += gv;
+            s.gc += gl;
+            if (gv > gl) s.v++;
+            else if (gv === gl) s.e++;
+            else s.d++;
+          }
+        }
 
-          const torneoIds = new Set(inscs.filter((i) => i.jugador_id === p.id).map((i) => i.torneo_id));
+        const inscritos = new Map();
+        for (const i of inscs) {
+          if (!inscritos.has(i.jugador_id)) inscritos.set(i.jugador_id, new Set());
+          inscritos.get(i.jugador_id).add(i.torneo_id);
+        }
+
+        const stats: JugadorStats[] = players.map((p) => {
+          const s = matchStats.get(p.id) || { v: 0, e: 0, d: 0, gf: 0, gc: 0, matches: 0 };
+          const torneosSet = inscritos.get(p.id);
 
           return {
             ...p,
-            torneos: torneoIds.size,
-            partidos: myMatches.length,
-            victorias: v,
-            empates: e,
-            derrotas: d,
-            golesFavor: gf,
-            golesContra: gc,
-            pct: myMatches.length > 0 ? Math.round((v / myMatches.length) * 100) : 0,
+            torneos: torneosSet ? torneosSet.size : 0,
+            partidos: s.matches,
+            victorias: s.v,
+            empates: s.e,
+            derrotas: s.d,
+            golesFavor: s.gf,
+            golesContra: s.gc,
+            pct: s.matches > 0 ? Math.round((s.v / s.matches) * 100) : 0,
           };
         });
 

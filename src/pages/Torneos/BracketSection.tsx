@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGrupos } from '../../hooks/useGrupos';
 import { supabase } from '../../lib/supabase';
@@ -10,7 +10,7 @@ import {
   avanzarFase,
 } from '../../hooks/useBracket';
 import type { Torneo, Partido, FasePartido, CriteriosClasificacion } from '../../types/database';
-import { Zap, ChevronRight, Trophy } from 'lucide-react';
+import { Zap, ChevronRight, Trophy, Download, Image as ImageIcon } from 'lucide-react';
 import './Bracket.css';
 
 const FASE_LABELS: Record<string, string> = {
@@ -21,12 +21,12 @@ const FASE_LABELS: Record<string, string> = {
   final: 'Final',
 };
 
-// Show final + 3rd place LAST, everything else in order
 const FASE_ORDER: FasePartido[] = ['octavos', 'cuartos', 'semifinal', 'tercer_puesto', 'final'];
 
 interface PlayerInfo {
   nombre: string;
   escudo: string | null;
+  foto_url: string | null;
 }
 
 interface BracketSectionProps {
@@ -39,14 +39,11 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
   const { grupos, partidos, loading, refetch } = useGrupos(torneo.id);
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-
-  // Independent player map — built from ALL inscriptions, not just group players
-  // This ensures knockout round players are always resolved
   const [playerMap, setPlayerMap] = useState<Record<string, PlayerInfo>>({});
+  const bracketRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadPlayerMap() {
-      // Fetch all inscriptions for this tournament
       const { data } = await supabase
         .from('torneo_inscripciones')
         .select(`
@@ -62,13 +59,14 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
           map[insc.jugador_id] = {
             nombre: insc.catalogos_equipos?.nombre || insc.jugadores?.nombre || '?',
             escudo: insc.catalogos_equipos?.escudo_url || null,
+            foto_url: insc.jugadores?.foto_url || null,
           };
         }
         setPlayerMap(map);
       }
     }
     if (torneo.id) loadPlayerMap();
-  }, [torneo.id, partidos]); // rebuild when partidos change (new phase)
+  }, [torneo.id, partidos]);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ message: msg, type });
@@ -76,64 +74,50 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
   };
 
   const getPlayerInfo = (jugadorId: string): PlayerInfo => {
-    // Try playerMap first (has inscription/team data)
     if (playerMap[jugadorId]) return playerMap[jugadorId];
-    // Fallback: search group data
     for (const g of grupos) {
       const j = g.jugadores.find((jg) => jg.jugador_id === jugadorId);
-      if (j) return { nombre: j.equipo_nombre || j.jugador_nombre || '?', escudo: j.equipo_escudo || null };
+      if (j) return { nombre: j.equipo_nombre || j.jugador_nombre || '?', escudo: j.equipo_escudo || null, foto_url: j.jugador_foto || null };
     }
-    return { nombre: 'Jugador', escudo: null };
+    return { nombre: 'Jugador', escudo: null, foto_url: null };
   };
 
   const criterios = torneo.criterios_json as CriteriosClasificacion;
   const config = calcularDistribucion(inscripcionesCount);
 
-  // All group matches finished?
   const grupoPartidos = partidos.filter((p) => p.fase === 'grupos');
   const gruposCompletos = grupoPartidos.length > 0 && grupoPartidos.every((p) => p.estado === 'finalizado');
 
-  // Knockout matches by phase
   const matchesByPhase: Record<string, Partido[]> = {};
   for (const f of FASE_ORDER) {
     matchesByPhase[f] = partidos.filter((p) => p.fase === f);
   }
   const hasKnockout = FASE_ORDER.some((f) => matchesByPhase[f].length > 0);
 
-  // Champion: winner of the final
   const finalMatch = matchesByPhase['final']?.[0];
   const championId = finalMatch?.estado === 'finalizado' && finalMatch.goles_local !== null && finalMatch.goles_visitante !== null
     ? (finalMatch.goles_local > finalMatch.goles_visitante ? finalMatch.jugador_local_id : finalMatch.jugador_visitante_id)
     : null;
 
-  // Generate knockout bracket (World Cup seeding)
   const handleGenerarEliminatoria = async () => {
     if (!confirm('¿Generar la fase eliminatoria con cruces estilo Mundial (A1 vs B2, etc.)?')) return;
     setActionLoading(true);
-
     const clasificados = obtenerClasificados(grupos, partidos, config, criterios.puntos_victoria, criterios.puntos_empate);
     const cruces = generarCrucesMundial(clasificados.primeros, clasificados.segundos, clasificados.mejoresTerceros, config);
-
     if (cruces.length === 0) {
       showToast('No hay suficientes clasificados para generar la eliminatoria', 'error');
       setActionLoading(false);
       return;
     }
-
     const { error } = await generarFaseEliminatoria(torneo.id, cruces, config.faseInicial);
     setActionLoading(false);
-
     if (error) showToast(error, 'error');
-    else { showToast(`¡${FASE_LABELS[config.faseInicial]} generada! ${cruces.length} cruces.`, 'success'); refetch(); }
+    else { showToast(`¡${FASE_LABELS[config.faseInicial]} generada!`, 'success'); refetch(); }
   };
 
-  // Advance winners to next round
   const handleAvanzar = async (fase: FasePartido) => {
     const pendientes = matchesByPhase[fase].filter((p) => p.estado === 'pendiente');
-    if (pendientes.length > 0) {
-      showToast(`Aún hay ${pendientes.length} partido(s) pendientes`, 'error');
-      return;
-    }
+    if (pendientes.length > 0) { showToast(`Aún hay ${pendientes.length} partido(s) pendientes`, 'error'); return; }
     setActionLoading(true);
     const { error } = await avanzarFase(torneo.id, partidos, fase);
     setActionLoading(false);
@@ -141,11 +125,15 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
     else { showToast('¡Fase avanzada!', 'success'); refetch(); }
   };
 
+  // Export bracket as image via browser print (PDF-friendly)
+  const handleExportPrint = () => {
+    window.print();
+  };
+
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
 
   const grupoFinalizados = grupoPartidos.filter((p) => p.estado === 'finalizado').length;
 
-  // If no knockout yet and groups aren't done, show pending message
   if (!hasKnockout && !gruposCompletos) {
     return (
       <div className="empty-state card" style={{ padding: '2rem' }}>
@@ -167,11 +155,16 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
       {championId && (
         <div className="champion-card fade-in">
           <div className="champion-trophy">🏆</div>
-          {getPlayerInfo(championId).escudo && (
-            <img src={getPlayerInfo(championId).escudo!} alt="" />
-          )}
-          <div className="champion-name">{getPlayerInfo(championId).nombre}</div>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>¡CAMPEÓN DEL TORNEO!</p>
+          <div className="champion-details">
+            {getPlayerInfo(championId).foto_url && (
+              <img src={getPlayerInfo(championId).foto_url!} alt="" className="champion-avatar" />
+            )}
+            {getPlayerInfo(championId).escudo && (
+              <img src={getPlayerInfo(championId).escudo!} alt="" className="champion-escudo" />
+            )}
+            <div className="champion-name">{getPlayerInfo(championId).nombre}</div>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>¡CAMPEÓN DEL TORNEO!</p>
+          </div>
         </div>
       )}
 
@@ -198,70 +191,104 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
 
       {/* Bracket visualization */}
       {hasKnockout && (
-        <div className="bracket-container">
-          <div className="bracket-rounds">
-            {FASE_ORDER.map((fase) => {
-              const matches = matchesByPhase[fase];
-              if (matches.length === 0) return null;
-
-              const allFinished = matches.every((m) => m.estado === 'finalizado');
-              const nextFaseIndex = FASE_ORDER.indexOf(fase) + 1;
-              // Skip tercer_puesto when looking for "next" phase in bracket progression
-              const nextFase = fase === 'semifinal' ? 'final' : FASE_ORDER[nextFaseIndex];
-              const nextExists = nextFase && matchesByPhase[nextFase]?.length > 0;
-
-              return (
-                <div key={fase} className="bracket-round">
-                  <span className="bracket-round-title">
-                    {fase === 'tercer_puesto' ? '🥉 3er Puesto' : FASE_LABELS[fase]}
-                  </span>
-
-                  {matches.map((m) => {
-                    const localInfo = getPlayerInfo(m.jugador_local_id);
-                    const visitInfo = getPlayerInfo(m.jugador_visitante_id);
-                    const finished = m.estado === 'finalizado' && m.goles_local !== null && m.goles_visitante !== null;
-                    const localWins = finished && m.goles_local! > m.goles_visitante!;
-                    const visitWins = finished && m.goles_visitante! > m.goles_local!;
-                    const isFinal = fase === 'final';
-
-                    return (
-                      <div key={m.id} className={`bracket-match ${isFinal ? 'bracket-final' : ''}`}>
-                        <div className={`bracket-team-row ${localWins ? 'winner' : finished && !localWins ? 'loser' : ''}`}>
-                          {localInfo.escudo
-                            ? <img src={localInfo.escudo} alt="" />
-                            : <div style={{ width: 20, height: 20, background: 'var(--color-bg-hover)', borderRadius: 4, flexShrink: 0 }} />
-                          }
-                          <span className="bracket-team-name">{localInfo.nombre}</span>
-                          <span className="bracket-team-score">{finished ? m.goles_local : '-'}</span>
-                        </div>
-                        <div className={`bracket-team-row ${visitWins ? 'winner' : finished && !visitWins ? 'loser' : ''}`}>
-                          {visitInfo.escudo
-                            ? <img src={visitInfo.escudo} alt="" />
-                            : <div style={{ width: 20, height: 20, background: 'var(--color-bg-hover)', borderRadius: 4, flexShrink: 0 }} />
-                          }
-                          <span className="bracket-team-name">{visitInfo.nombre}</span>
-                          <span className="bracket-team-score">{finished ? m.goles_visitante : '-'}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Admin: advance to next phase */}
-                  {isAdmin && allFinished && !nextExists && fase !== 'final' && fase !== 'tercer_puesto' && (
-                    <button
-                      className={`btn btn-primary btn-sm ${actionLoading ? 'btn-loading' : ''}`}
-                      onClick={() => handleAvanzar(fase)}
-                      disabled={actionLoading}
-                      style={{ marginTop: 'var(--space-sm)', width: '100%' }}
-                    >
-                      <ChevronRight size={14} /> Avanzar a {FASE_LABELS[nextFase] || 'siguiente fase'}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+        <>
+          {/* Export toolbar */}
+          <div className="bracket-toolbar no-print">
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+              🏆 {torneo.nombre}
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-ghost btn-sm" onClick={handleExportPrint} title="Exportar / Imprimir">
+                <Download size={15} /> PDF / Imprimir
+              </button>
+            </div>
           </div>
-        </div>
+
+          <div className="bracket-container" ref={bracketRef} id="bracket-exportable">
+            <div className="bracket-rounds">
+              {FASE_ORDER.map((fase) => {
+                const matches = matchesByPhase[fase];
+                if (matches.length === 0) return null;
+
+                const allFinished = matches.every((m) => m.estado === 'finalizado');
+                const nextFaseIndex = FASE_ORDER.indexOf(fase) + 1;
+                const nextFase = fase === 'semifinal' ? 'final' : FASE_ORDER[nextFaseIndex];
+                const nextExists = nextFase && matchesByPhase[nextFase]?.length > 0;
+
+                return (
+                  <div key={fase} className="bracket-round">
+                    <span className="bracket-round-title">
+                      {fase === 'tercer_puesto' ? '🥉 3er Puesto' : FASE_LABELS[fase]}
+                    </span>
+
+                    {matches.map((m) => {
+                      const localInfo = getPlayerInfo(m.jugador_local_id);
+                      const visitInfo = getPlayerInfo(m.jugador_visitante_id);
+                      const finished = m.estado === 'finalizado' && m.goles_local !== null && m.goles_visitante !== null;
+                      const localWins = finished && m.goles_local! > m.goles_visitante!;
+                      const visitWins = finished && m.goles_visitante! > m.goles_local!;
+                      const isFinal = fase === 'final';
+
+                      return (
+                        <div key={m.id} className={`bracket-match ${isFinal ? 'bracket-final' : ''}`}>
+                          {/* Local */}
+                          <div className={`bracket-team-row ${localWins ? 'winner' : finished && !localWins ? 'loser' : ''}`}>
+                            <div className="bracket-team-identity">
+                              {localInfo.foto_url ? (
+                                <img src={localInfo.foto_url} alt="" className="bracket-player-avatar" />
+                              ) : (
+                                <div className="bracket-player-avatar-placeholder">
+                                  {localInfo.nombre.charAt(0)}
+                                </div>
+                              )}
+                              {localInfo.escudo ? (
+                                <img src={localInfo.escudo} alt="" className="bracket-team-shield" />
+                              ) : (
+                                <span className="bracket-team-shield-emoji">⚽</span>
+                              )}
+                              <span className="bracket-team-name">{localInfo.nombre}</span>
+                            </div>
+                            <span className="bracket-team-score">{finished ? m.goles_local : '-'}</span>
+                          </div>
+                          {/* Visitante */}
+                          <div className={`bracket-team-row ${visitWins ? 'winner' : finished && !visitWins ? 'loser' : ''}`}>
+                            <div className="bracket-team-identity">
+                              {visitInfo.foto_url ? (
+                                <img src={visitInfo.foto_url} alt="" className="bracket-player-avatar" />
+                              ) : (
+                                <div className="bracket-player-avatar-placeholder">
+                                  {visitInfo.nombre.charAt(0)}
+                                </div>
+                              )}
+                              {visitInfo.escudo ? (
+                                <img src={visitInfo.escudo} alt="" className="bracket-team-shield" />
+                              ) : (
+                                <span className="bracket-team-shield-emoji">⚽</span>
+                              )}
+                              <span className="bracket-team-name">{visitInfo.nombre}</span>
+                            </div>
+                            <span className="bracket-team-score">{finished ? m.goles_visitante : '-'}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {isAdmin && allFinished && !nextExists && fase !== 'final' && fase !== 'tercer_puesto' && (
+                      <button
+                        className={`btn btn-primary btn-sm no-print ${actionLoading ? 'btn-loading' : ''}`}
+                        onClick={() => handleAvanzar(fase)}
+                        disabled={actionLoading}
+                        style={{ marginTop: 'var(--space-sm)', width: '100%' }}
+                      >
+                        <ChevronRight size={14} /> Avanzar a {FASE_LABELS[nextFase] || 'siguiente fase'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

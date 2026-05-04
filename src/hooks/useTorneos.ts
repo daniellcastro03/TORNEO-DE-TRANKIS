@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, DEVICE_ID } from '../lib/supabase';
 import type {
   Torneo,
   TorneoInscripcion,
@@ -64,9 +64,9 @@ export function useTorneos(filtroEstado?: EstadoTorneo) {
   useEffect(() => {
     fetchTorneos();
 
-    // Realtime on torneos table
+    // Canal único por dispositivo para evitar conflictos con 40+ sesiones
     const channel = supabase
-      .channel('torneos-changes')
+      .channel(`torneos-list-${DEVICE_ID}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'torneos' }, () => {
         fetchTorneos();
       })
@@ -130,9 +130,9 @@ export function useTorneoDetalle(torneoId: string | undefined) {
 
     if (!torneoId) return;
 
-    // Realtime on inscriptions for this tournament
+    // Canal único por dispositivo + torneo para evitar conflictos entre usuarios
     const channel = supabase
-      .channel(`torneo-${torneoId}`)
+      .channel(`torneo-detalle-${torneoId}-${DEVICE_ID}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -209,7 +209,7 @@ export async function crearTorneo(
 
 export async function actualizarTorneo(
   id: string,
-  updates: Partial<Pick<Torneo, 'nombre' | 'estado' | 'max_jugadores' | 'permite_cambio_equipo' | 'criterios_json' | 'fecha_inicio'>>
+  updates: Partial<Pick<Torneo, 'nombre' | 'estado' | 'max_jugadores' | 'permite_cambio_equipo' | 'criterios_json' | 'fecha_inicio' | 'tipo'>>
 ): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('torneos')

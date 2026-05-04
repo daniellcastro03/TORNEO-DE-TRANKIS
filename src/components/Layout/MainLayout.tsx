@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import NotificationsDropdown from '../Notifications/NotificationsDropdown';
+import ThemeToggle from './ThemeToggle';
 import {
   LayoutDashboard,
   Trophy,
@@ -34,6 +35,7 @@ export default function MainLayout() {
         </NavLink>
 
         <div className="top-bar-right">
+          <ThemeToggle />
           {!user ? (
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/login')}>
               Iniciar Sesión

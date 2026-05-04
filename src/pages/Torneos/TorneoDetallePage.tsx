@@ -5,6 +5,7 @@ import {
   useTorneoDetalle,
   cambiarEstadoTorneo,
   eliminarTorneo,
+  actualizarTorneo,
   inscribirJugador,
   cancelarInscripcion,
   cambiarEquipoInscripcion,
@@ -14,7 +15,7 @@ import TeamSelector from '../../components/TeamSelector';
 import GruposSection from './GruposSection';
 import BracketSection from './BracketSection';
 import { crearNotificacion, notificarJugadores } from '../../hooks/useNotificaciones';
-import type { CatalogoEquipo, EstadoTorneo, TorneoInscripcion } from '../../types/database';
+import type { CatalogoEquipo, EstadoTorneo, TorneoInscripcion, TipoTorneo } from '../../types/database';
 import {
   ArrowLeft,
   Trophy,
@@ -80,6 +81,34 @@ export default function TorneoDetallePage() {
   const [changingTeam, setChangingTeam] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editNombre, setEditNombre] = useState('');
+  const [editTipo, setEditTipo] = useState<TipoTorneo>('champions');
+
+  useEffect(() => {
+    if (showEditModal && torneo) {
+      setEditNombre(torneo.nombre);
+      setEditTipo(torneo.tipo);
+    }
+  }, [showEditModal, torneo]);
+
+  const handleActualizar = async () => {
+    if (!torneo) return;
+    setActionLoading(true);
+    const { error: err } = await actualizarTorneo(torneo.id, {
+      nombre: editNombre,
+      tipo: editTipo
+    });
+    setActionLoading(false);
+
+    if (err) {
+      showToast(err, 'error');
+    } else {
+      showToast('Configuración del torneo actualizada', 'success');
+      setShowEditModal(false);
+      refetch();
+    }
+  };
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -299,18 +328,59 @@ export default function TorneoDetallePage() {
               {estadoConfig.nextLabel}
             </button>
           )}
-          {torneo.estado === 'borrador' && (
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={handleEliminar}
-              disabled={actionLoading}
-            >
-              <Trash2 size={16} /> Eliminar
-            </button>
-          )}
-          <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/admin/torneos/${torneo.id}/editar`)} disabled>
-            <Settings size={16} /> Editar
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={handleEliminar}
+            disabled={actionLoading}
+          >
+            <Trash2 size={16} /> Eliminar
           </button>
+          <button 
+            className="btn btn-ghost btn-sm" 
+            onClick={() => setShowEditModal(true)} 
+            disabled={actionLoading}
+          >
+            <Settings size={16} /> Editar Config
+          </button>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="card fade-in" style={{ marginBottom: 'var(--space-xl)', border: '1px solid var(--color-neon)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ color: 'var(--color-neon)' }}><Settings size={18} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }}/>Editar Configuración</h3>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowEditModal(false)}><X size={16} /></button>
+          </div>
+          <div className="form-group">
+            <label>Nombre del Torneo</label>
+            <input 
+              type="text" 
+              className="input" 
+              value={editNombre} 
+              onChange={e => setEditNombre(e.target.value)} 
+            />
+          </div>
+          <div className="form-group" style={{ marginTop: '1rem' }}>
+            <label>Tipo de Torneo</label>
+            <select 
+              className="input" 
+              value={editTipo} 
+              onChange={e => setEditTipo(e.target.value as TipoTorneo)}
+            >
+              <option value="champions">🏆 Champions League</option>
+              <option value="mundial">🌍 Mundial</option>
+              <option value="liga">⚽ Liga</option>
+              <option value="libre">🎮 Libre</option>
+            </select>
+            <small style={{ color: 'var(--color-text-muted)', display: 'block', marginTop: '0.5rem' }}>
+              Cambiar el tipo afectará cómo se buscan los equipos y el formato general si aún no ha iniciado.
+            </small>
+          </div>
+          <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost" onClick={() => setShowEditModal(false)}>Cancelar</button>
+            <button className="btn btn-primary" onClick={handleActualizar} disabled={actionLoading}>Guardar Cambios</button>
+          </div>
         </div>
       )}
 

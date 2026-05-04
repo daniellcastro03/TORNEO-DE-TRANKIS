@@ -75,6 +75,57 @@
   --max-content-width: 1200px;
 }
 
+/* ─── Tema Claro ─────────────────────────────────────────── */
+[data-theme="light"] {
+  --color-bg: #F0F2F5;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-card: #FFFFFF;
+  --color-bg-card-hover: #F8F9FA;
+  --color-bg-input: #F0F2F5;
+  --color-bg-input-focus: #FFFFFF;
+
+  --color-neon: #16A34A;
+  --color-neon-dim: #15803D;
+  --color-neon-glow: rgba(22, 163, 74, 0.2);
+  --color-neon-glow-strong: rgba(22, 163, 74, 0.35);
+  --color-neon-subtle: rgba(22, 163, 74, 0.08);
+  --color-surface-2: #F3F4F6;
+
+  --color-text: #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-muted: #9CA3AF;
+
+  --color-border: #E5E7EB;
+  --color-border-hover: #D1D5DB;
+  --color-border-neon: rgba(22, 163, 74, 0.4);
+
+  --color-danger: #DC2626;
+  --color-danger-dim: #B91C1C;
+  --color-warning: #D97706;
+  --color-success: #16A34A;
+
+  --color-win: #16A34A;
+  --color-draw: #6B7280;
+  --color-loss: #DC2626;
+
+  --shadow-card: 0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-neon: 0 0 16px rgba(22, 163, 74, 0.15);
+  --shadow-neon-strong: 0 0 24px rgba(22, 163, 74, 0.25);
+  --shadow-elevated: 0 4px 24px rgba(0, 0, 0, 0.1);
+
+  color-scheme: light;
+}
+
+/* Transición suave al cambiar de tema */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+/* Excepciones: animaciones propias no se deben mezclar */
+.spinner, .spinner * { transition: none !important; }
+.fade-in { transition: none !important; }
+
 /* ---------- Reset & Base ---------- */
 *,
 *::before,

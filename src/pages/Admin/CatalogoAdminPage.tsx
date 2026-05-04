@@ -326,29 +326,43 @@ function EquipoModal({ equipo, onClose, onSaved, showToast }: EquipoModalProps) 
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validar tipo y tamaño (máx 3 MB)
+    if (!file.type.startsWith('image/')) {
+      showToast('Solo se permiten archivos de imagen', 'error');
+      if (e.target) e.target.value = '';
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      showToast('La imagen no debe superar 3 MB', 'error');
+      if (e.target) e.target.value = '';
+      return;
+    }
+
     setUploading(true);
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const fileName = `equipo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
 
     try {
       const { error: uploadError } = await supabase.storage
         .from('equipos')
-        .upload(filePath, file);
+        .upload(fileName, file, {
+          upsert: true,          // no falla si ya existe
+          cacheControl: '3600',  // cache 1h en CDN
+        });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
         .from('equipos')
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
-      setEscudoUrl(publicUrl);
+      // Forzar un cache-bust mínimo para que el preview muestre la nueva imagen
+      setEscudoUrl(`${publicUrl}?t=${Date.now()}`);
     } catch (error: any) {
-      showToast('Error al subir imagen. Verifica los permisos del bucket de equipos.', 'error');
+      showToast('Error al subir imagen. Verifica los permisos del bucket "equipos".', 'error');
       console.error('Upload error:', error);
     } finally {
       setUploading(false);
-      // Reset input so the same file can be uploaded again if needed
       if (e.target) e.target.value = '';
     }
   };
@@ -434,14 +448,7 @@ function EquipoModal({ equipo, onClose, onSaved, showToast }: EquipoModalProps) 
                 onChange={handleFileUpload}
               />
             </div>
-            <div style={{ textAlign: 'center', margin: '0.5rem 0', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>o</div>
-            <input
-              id="equipo-escudo"
-              type="url"
-              value={escudoUrl}
-              onChange={(e) => setEscudoUrl(e.target.value)}
-              placeholder="Ingresar URL de la imagen..."
-            />
+
             {escudoUrl && (
               <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
                 <img
