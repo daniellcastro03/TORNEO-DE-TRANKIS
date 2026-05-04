@@ -399,9 +399,6 @@ export default function TorneoDetallePage() {
               {miInscripcion.estado === 'confirmada' && (
                 <p>✅ Inscripción confirmada — ¡Listo para jugar!</p>
               )}
-              {miInscripcion.estado === 'rechazada' && (
-                <p style={{ color: 'var(--color-danger)' }}>❌ Inscripción rechazada — elige otro equipo o contacta al admin</p>
-              )}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -512,7 +509,6 @@ export default function TorneoDetallePage() {
                 style={{
                   animationDelay: `${i * 0.04}s`,
                   ...(insc.jugador_id === user?.id ? { borderColor: 'var(--color-border-neon)' } : {}),
-                  opacity: insc.estado === 'rechazada' ? 0.5 : 1,
                 }}
               >
                 <span className="inscripcion-num">#{i + 1}</span>
@@ -553,9 +549,6 @@ export default function TorneoDetallePage() {
                   )}
                   {insc.estado === 'confirmada' && (
                     <span style={{ fontSize: '0.62rem', padding: '2px 7px', borderRadius: 99, border: '1px solid var(--color-neon)', color: 'var(--color-neon)' }}>✅ Confirmado</span>
-                  )}
-                  {insc.estado === 'rechazada' && (
-                    <span style={{ fontSize: '0.62rem', padding: '2px 7px', borderRadius: 99, border: '1px solid var(--color-danger)', color: 'var(--color-danger)' }}>❌ Rechazado</span>
                   )}
                 </div>
               </div>

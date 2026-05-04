@@ -38,7 +38,7 @@ export function useTorneos(filtroEstado?: EstadoTorneo) {
     try {
       let query = supabase
         .from('torneos')
-        .select('*, torneo_inscripciones(count)')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (filtroEstado) {
@@ -48,9 +48,27 @@ export function useTorneos(filtroEstado?: EstadoTorneo) {
       const { data, error: fetchErr } = await query;
       if (fetchErr) throw fetchErr;
 
+      // Fetch non-rejected inscription counts in a single batch query
+      const torneoIds = (data || []).map((t: any) => t.id);
+      let countMap: Record<string, number> = {};
+
+      if (torneoIds.length > 0) {
+        const { data: inscData } = await supabase
+          .from('torneo_inscripciones')
+          .select('torneo_id')
+          .in('torneo_id', torneoIds)
+          .neq('estado', 'rechazada');
+
+        // Count per tournament
+        for (const insc of (inscData || [])) {
+          const tid = (insc as any).torneo_id;
+          countMap[tid] = (countMap[tid] || 0) + 1;
+        }
+      }
+
       const mapped = (data || []).map((t: any) => ({
         ...t,
-        inscripciones_count: t.torneo_inscripciones?.[0]?.count ?? 0,
+        inscripciones_count: countMap[t.id] || 0,
       }));
 
       setTorneos(mapped);
@@ -117,7 +135,12 @@ export function useTorneoDetalle(torneoId: string | undefined) {
         catalogo_equipo: i.catalogos_equipos,
       }));
 
-      setInscripciones(mapped);
+      // Filter out rejected inscriptions — they don't count as real inscriptions
+      const activeInscriptions = mapped.filter(
+        (i: any) => i.estado !== 'rechazada'
+      );
+
+      setInscripciones(activeInscriptions);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -269,6 +292,33 @@ export async function inscribirJugador(
   jugadorId: string,
   catalogoEquipoId: string
 ): Promise<{ error: string | null }> {
+  // Check if there's an existing rejected inscription — update it instead of inserting
+  const { data: existing } = await supabase
+    .from('torneo_inscripciones')
+    .select('id, estado')
+    .eq('torneo_id', torneoId)
+    .eq('jugador_id', jugadorId)
+    .maybeSingle();
+
+  if (existing && existing.estado === 'rechazada') {
+    // Reuse the rejected row — update with new team and reset to pending
+    const { error } = await supabase
+      .from('torneo_inscripciones')
+      .update({
+        catalogo_equipo_id: catalogoEquipoId,
+        estado: 'pendiente' as const,
+      })
+      .eq('id', existing.id);
+
+    if (error) {
+      if (error.message.includes('duplicate') || error.message.includes('unique')) {
+        return { error: 'Este equipo ya fue tomado por otro jugador' };
+      }
+      return { error: error.message };
+    }
+    return { error: null };
+  }
+
   const { error } = await supabase
     .from('torneo_inscripciones')
     .insert({
@@ -325,12 +375,14 @@ export async function getMiInscripcion(
   torneoId: string,
   jugadorId: string
 ): Promise<TorneoInscripcion | null> {
+  // Only return active inscriptions (not rejected) — rejected players can re-inscribe
   const { data } = await supabase
     .from('torneo_inscripciones')
     .select('*')
     .eq('torneo_id', torneoId)
     .eq('jugador_id', jugadorId)
-    .single();
+    .neq('estado', 'rechazada')
+    .maybeSingle();
 
   return (data as TorneoInscripcion) || null;
 }
