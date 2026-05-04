@@ -44,10 +44,11 @@ export default function JugadoresPage() {
           .select('jugador_local_id, jugador_visitante_id, goles_local, goles_visitante, estado, torneo_id')
           .eq('estado', 'finalizado');
 
-        // Fetch all inscriptions (count per player)
+        // Fetch all inscriptions (count per player) — exclude rejected
         const { data: inscripcionesRaw } = await supabase
           .from('torneo_inscripciones')
-          .select('jugador_id, torneo_id');
+          .select('jugador_id, torneo_id')
+          .neq('estado', 'rechazada');
 
         const matches = (allMatchesRaw as Array<{ jugador_local_id: string; jugador_visitante_id: string; goles_local: number | null; goles_visitante: number | null; estado: string; torneo_id: string }>) || [];
         const inscs = (inscripcionesRaw as Array<{ jugador_id: string; torneo_id: string }>) || [];

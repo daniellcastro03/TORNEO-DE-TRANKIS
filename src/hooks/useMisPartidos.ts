@@ -138,11 +138,12 @@ export function useMisPartidos(jugadorId: string | undefined) {
         else d++;
       }
 
-      // Count active tournaments
+      // Count active tournaments — exclude rejected inscriptions
       const { count } = await supabase
         .from('torneo_inscripciones')
         .select('*', { count: 'exact', head: true })
-        .eq('jugador_id', jugadorId);
+        .eq('jugador_id', jugadorId)
+        .neq('estado', 'rechazada');
 
       setStats({
         totalPartidos: detailed.length,
