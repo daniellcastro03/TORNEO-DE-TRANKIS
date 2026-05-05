@@ -95,10 +95,21 @@ export default function InscripcionesAdminPage() {
   ) => {
     setActionLoading(insc.id);
     try {
-      const { error } = await supabase
-        .from('torneo_inscripciones')
-        .update({ estado: nuevoEstado })
-        .eq('id', insc.id);
+      let error;
+
+      if (nuevoEstado === 'rechazada') {
+        const res = await supabase
+          .from('torneo_inscripciones')
+          .delete()
+          .eq('id', insc.id);
+        error = res.error;
+      } else {
+        const res = await supabase
+          .from('torneo_inscripciones')
+          .update({ estado: nuevoEstado })
+          .eq('id', insc.id);
+        error = res.error;
+      }
 
       if (error) throw error;
 
