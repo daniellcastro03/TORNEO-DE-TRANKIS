@@ -372,6 +372,108 @@ function generateRoundRobin(
   return matches;
 }
 
+// Admin: Complete a partial sorteo (creates only missing groups for unassigned players)
+export async function completarSorteoGrupos(
+  torneoId: string,
+  numGruposTotal: number,
+  todosJugadorIds: string[]
+): Promise<{ error: string | null }> {
+  try {
+    // 1. Get existing groups
+    const { data: existingGrupos, error: gErr } = await supabase
+      .from('grupos')
+      .select('id, nombre')
+      .eq('torneo_id', torneoId)
+      .order('nombre', { ascending: true });
+    if (gErr) throw gErr;
+
+    // 2. Get already-assigned players
+    const existingGrupoIds = (existingGrupos || []).map((g: any) => g.id);
+    let assignedPlayerIds: string[] = [];
+
+    if (existingGrupoIds.length > 0) {
+      const { data: gjData } = await supabase
+        .from('grupo_jugadores')
+        .select('jugador_id')
+        .in('grupo_id', existingGrupoIds);
+      assignedPlayerIds = (gjData || []).map((gj: any) => gj.jugador_id);
+    }
+
+    // 3. Find unassigned players
+    const assignedSet = new Set(assignedPlayerIds);
+    const unassigned = todosJugadorIds.filter((id) => !assignedSet.has(id));
+    if (unassigned.length === 0) return { error: 'Todos los jugadores ya están en un grupo' };
+
+    // 4. Determine missing group names
+    const groupNames = 'ABCDEFGHIJKLMNOP'.split('');
+    const existingNames = new Set(
+      (existingGrupos || []).map((g: any) => g.nombre.replace('Grupo ', '').replace('grupo ', ''))
+    );
+    const missingNames = groupNames
+      .slice(0, numGruposTotal)
+      .filter((name) => !existingNames.has(name));
+
+    if (missingNames.length === 0) {
+      return { error: `No quedan grupos por crear (ya existen ${existingGrupos?.length} de ${numGruposTotal})` };
+    }
+
+    // 5. Shuffle unassigned players and distribute into missing groups
+    const shuffled = [...unassigned].sort(() => Math.random() - 0.5);
+    const numMissing = missingNames.length;
+    const gruposData: { nombre: string; jugadores: string[] }[] = [];
+
+    for (let i = 0; i < numMissing; i++) {
+      gruposData.push({ nombre: `Grupo ${missingNames[i]}`, jugadores: [] });
+    }
+    shuffled.forEach((jId, index) => {
+      gruposData[index % numMissing].jugadores.push(jId);
+    });
+
+    // 6. Create missing groups in DB
+    for (const g of gruposData) {
+      const { data: grupo, error: gInsErr } = await supabase
+        .from('grupos')
+        .insert({ torneo_id: torneoId, nombre: g.nombre })
+        .select()
+        .single();
+      if (gInsErr) throw gInsErr;
+
+      // Add players to group
+      if (g.jugadores.length > 0) {
+        const gjInserts = g.jugadores.map((jId) => ({
+          grupo_id: (grupo as any).id,
+          jugador_id: jId,
+        }));
+        const { error: gjErr } = await supabase.from('grupo_jugadores').insert(gjInserts);
+        if (gjErr) throw gjErr;
+
+        // Generate round-robin matches
+        const matchInserts = generateRoundRobin(g.jugadores, torneoId, (grupo as any).id);
+        if (matchInserts.length > 0) {
+          const { error: mErr } = await supabase.from('partidos').insert(matchInserts);
+          if (mErr) throw mErr;
+        }
+      }
+    }
+
+    // Notify players about their group
+    for (const g of gruposData) {
+      if (g.jugadores.length > 0) {
+        await notificarJugadores(
+          g.jugadores,
+          'grupo',
+          `Tu grupo es el ${g.nombre.replace('Grupo ', '')}`,
+          `Has sido asignado al ${g.nombre}. ¡Entra para ver tus rivales!`
+        );
+      }
+    }
+
+    return { error: null };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
 // Admin: Delete all groups for a tournament (reset)
 export async function eliminarGrupos(
   torneoId: string
