@@ -593,51 +593,7 @@ body{font-family:system-ui, -apple-system, sans-serif;background:#0f172a;color:#
     }
   };
 
-  const grupoPartidos = partidos.filter((p) => p.grupo_id === grupo.id);
-  const done = grupoPartidos.filter(p => p.estado === 'finalizado').length;
-  const clasificados = criterios.clasificados_por_grupo || 2;
 
-  function getRowStatus(row: ClasificacionRow): 'classified' | 'third' | 'eliminated' {
-    if (row.posicion <= clasificados) return 'classified';
-    if (mejoresTerceros > 0 && row.posicion === clasificados + 1) return 'third';
-    return 'eliminated';
-  }
-
-  const getInitials = (name: string) =>
-    name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
-  // Next pending opponent for a player within this group
-  type OpponentInfo = { nombre: string; escudo: string | null; equipo: string } | null;
-  function getNextOpponent(jugadorId: string): OpponentInfo {
-    const pendientes = grupoPartidos
-      .filter(
-        (p) =>
-          p.estado === 'pendiente' &&
-          (p.jugador_local_id === jugadorId || p.jugador_visitante_id === jugadorId)
-      )
-      .sort((a, b) => {
-        const fa = Number(a.fecha) || 999;
-        const fb = Number(b.fecha) || 999;
-        return fa - fb;
-      });
-
-    if (pendientes.length === 0) return null;
-
-    const next = pendientes[0];
-    const rivalId =
-      next.jugador_local_id === jugadorId
-        ? next.jugador_visitante_id
-        : next.jugador_local_id;
-
-    const rivalInfo = grupo.jugadores.find((j) => j.jugador_id === rivalId);
-    if (!rivalInfo) return null;
-
-    return {
-      nombre: rivalInfo.jugador_nombre || '?',
-      escudo: rivalInfo.equipo_escudo || null,
-      equipo: rivalInfo.equipo_nombre || '',
-    };
-  }
 
   return (
     <div
