@@ -312,59 +312,235 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
       </div>`;
     }
 
+    // Number of matches in the first (largest) round — drives layout height
+    const firstRoundCount = activeFases.length > 0 ? matchesByPhase[activeFases[0]].length : 1;
+
     const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <title>Bracket — ${torneo.nombre}</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,sans-serif;background:#4a0012;color:#fff;padding:20px;min-height:100vh}
-.hdr{text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid rgba(255,215,0,0.3)}
-.ht{font-size:26px;font-weight:900;letter-spacing:3px;text-transform:uppercase;color:#ffd700}
-.hs{font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:3px;text-transform:uppercase;margin-top:4px}
-.bw{display:flex;gap:6px;align-items:stretch;justify-content:center;flex-wrap:wrap}
-.rc{display:flex;flex-direction:column;min-width:190px;max-width:210px}
-.rh{text-align:center;margin-bottom:10px}
-.rt{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#ffd700;border:1px solid rgba(255,215,0,0.3);border-radius:20px;padding:3px 10px;background:rgba(255,215,0,0.07);display:inline-block}
-.rm{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:8px}
-.ms{display:flex;align-items:center}
-.mc{width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;overflow:hidden}
-.mf{border-color:rgba(255,215,0,0.5);box-shadow:0 0 16px rgba(255,215,0,0.2)}
-.tr{display:flex;align-items:center;padding:7px 10px;gap:8px;border-bottom:1px solid rgba(255,255,255,0.08)}
-.tr:last-child{border-bottom:none}
-.tr.win{background:rgba(255,215,0,0.1)}
-.tr.los{opacity:0.4}
-.tc{flex:1;display:flex;align-items:center;gap:7px;min-width:0}
-.pn{font-size:10px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,0.85)}
-.tr.win .pn{color:#ffd700;font-weight:700}
-.lw{flex-shrink:0}
-.pl{width:38px;height:38px;object-fit:contain;border-radius:4px;display:block}
-.pp{width:38px;height:38px;border-radius:8px;background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.35);color:#ffd700;font-weight:900;font-size:15px;display:flex;align-items:center;justify-content:center}
-.sc{font-size:18px;font-weight:900;min-width:26px;text-align:center;color:rgba(255,255,255,0.5);margin-left:4px}
-.tr.win .sc{color:#ffd700}
-.md{height:1px;background:rgba(255,255,255,0.1)}
-.tp{margin-top:24px;padding-top:20px;border-top:1px dashed rgba(255,255,255,0.15);display:flex;flex-direction:column;align-items:center;gap:10px}
-.tpt{font-size:12px;font-weight:700;color:#cd7f32;text-transform:uppercase;letter-spacing:2px}
-.tp .mc{min-width:190px;max-width:220px}
-.ch{text-align:center;margin-top:24px;padding:20px;background:rgba(255,215,0,0.08);border:2px solid rgba(255,215,0,0.4);border-radius:16px;max-width:220px;margin:24px auto 0}
-.ct{font-size:44px;margin-bottom:8px}
-.ch img,.cl{width:56px;height:56px;object-fit:contain;margin:0 auto 8px;display:block}
-.cp{width:56px;height:56px;border-radius:12px;background:rgba(255,215,0,0.2);color:#ffd700;font-size:22px;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 8px}
-.cn{font-size:17px;font-weight:900;color:#ffd700}
-.ce{font-size:11px;color:rgba(255,215,0,0.7);margin-top:2px}
-.cl2{font-size:9px;letter-spacing:3px;color:rgba(255,215,0,0.5);text-transform:uppercase;margin-top:6px}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+/* ── Page setup: landscape, single page ── */
+@page {
+  size: A4 landscape;
+  margin: 8mm;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Full-page layout so bracket fills the sheet */
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  background: #3a000d;
+  color: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Outer wrapper: column with header + bracket */
+.page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 6mm 6mm 4mm;
+}
+
+/* Header */
+.hdr {
+  text-align: center;
+  margin-bottom: 5mm;
+  padding-bottom: 3mm;
+  border-bottom: 2px solid rgba(255,215,0,0.35);
+  flex-shrink: 0;
+}
+.ht {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #ffd700;
+}
+.hs {
+  font-size: 8px;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Bracket: horizontal row of round-columns, NO wrapping */
+.bw {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+/* One column per round */
+.rc {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Round title pill */
+.rh { text-align: center; margin-bottom: 4px; flex-shrink: 0; }
+.rt {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #ffd700;
+  border: 1px solid rgba(255,215,0,0.3);
+  border-radius: 20px;
+  padding: 2px 8px;
+  background: rgba(255,215,0,0.07);
+  display: inline-block;
+}
+
+/* Match slots distributed evenly */
+.rm {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 2px;
+}
+
+.ms { display: flex; align-items: center; }
+
+/* Match card */
+.mc {
+  width: 100%;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.mf {
+  border-color: rgba(255,215,0,0.55) !important;
+  box-shadow: 0 0 8px rgba(255,215,0,0.2);
+}
+
+/* Team row */
+.tr {
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+  gap: 5px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.tr:last-child { border-bottom: none; }
+.tr.win { background: rgba(255,215,0,0.1); }
+.tr.los { opacity: 0.4; }
+
+.tc { flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0; }
+.pn {
+  font-size: 8px;
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(255,255,255,0.9);
+}
+.tr.win .pn { color: #ffd700; font-weight: 700; }
+
+/* Team logo */
+.lw { flex-shrink: 0; }
+.pl { width: 26px; height: 26px; object-fit: contain; border-radius: 3px; display: block; }
+.pp {
+  width: 26px; height: 26px;
+  border-radius: 5px;
+  background: rgba(255,215,0,0.15);
+  border: 1px solid rgba(255,215,0,0.35);
+  color: #ffd700;
+  font-weight: 900;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Score */
+.sc {
+  font-size: 13px;
+  font-weight: 900;
+  min-width: 18px;
+  text-align: center;
+  color: rgba(255,255,255,0.45);
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+.tr.win .sc { color: #ffd700; }
+.md { height: 1px; background: rgba(255,255,255,0.08); }
+
+/* 3rd place & champion — small footer row */
+.footer-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 4mm;
+  padding-top: 3mm;
+  border-top: 1px dashed rgba(255,255,255,0.15);
+  flex-shrink: 0;
+}
+
+.tp { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tpt {
+  font-size: 7px; font-weight: 700; color: #cd7f32;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  margin-bottom: 3px;
+}
+.tp .mc { width: 160px; }
+
+.ch {
+  text-align: center;
+  padding: 8px 12px;
+  background: rgba(255,215,0,0.08);
+  border: 2px solid rgba(255,215,0,0.4);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.ct { font-size: 28px; }
+.ch img, .cl { width: 36px; height: 36px; object-fit: contain; }
+.cp {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: rgba(255,215,0,0.2); color: #ffd700;
+  font-size: 16px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+}
+.cn { font-size: 11px; font-weight: 900; color: #ffd700; }
+.ce { font-size: 8px; color: rgba(255,215,0,0.6); }
+.cl2 { font-size: 7px; letter-spacing: 2px; color: rgba(255,215,0,0.45); text-transform: uppercase; }
 </style>
 </head>
 <body>
-<div class="hdr">
-  <div class="ht">⚽ ${torneo.nombre}</div>
-  <div class="hs">Fase Eliminatoria — Llaves del Torneo</div>
+<div class="page">
+  <div class="hdr">
+    <div class="ht">⚽ ${torneo.nombre}</div>
+    <div class="hs">Fase Eliminatoria — Llaves del Torneo</div>
+  </div>
+
+  <div class="bw">${roundsHTML}</div>
+
+  ${(tercerHTML || champHTML) ? `
+  <div class="footer-row">
+    ${tercerHTML}
+    ${champHTML}
+  </div>` : ''}
 </div>
-<div class="bw">${roundsHTML}</div>
-${tercerHTML}
-${champHTML}
 <script>setTimeout(function(){window.print();},1200);</script>
 </body>
 </html>`;
