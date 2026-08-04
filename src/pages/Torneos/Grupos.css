@@ -224,9 +224,24 @@
 }
 .grupo-card-progress-dot.done { background: var(--color-neon); }
 
+/* ── Table scroll wrapper ── */
+.tabla-scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-hover) transparent;
+  position: relative;
+}
+.tabla-scroll-wrapper::-webkit-scrollbar { height: 4px; }
+.tabla-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: var(--color-border-hover);
+  border-radius: 99px;
+}
+
 /* ── Classification table ── */
 .tabla-clasificacion {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
 }
 .tabla-clasificacion th {

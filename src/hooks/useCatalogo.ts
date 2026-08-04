@@ -6,6 +6,7 @@ interface UseCatalogoOptions {
   tipo?: TipoTorneo;
   liga?: string;
   torneoId?: string; // To check which teams are already taken in a tournament
+  excludeJugadorId?: string; // Exclude this player's own inscription from the "taken" set
 }
 
 interface CatalogoState {
@@ -15,7 +16,7 @@ interface CatalogoState {
   equiposTomados: Set<string>; // IDs of teams already selected by other players
 }
 
-export function useCatalogo({ tipo, liga, torneoId }: UseCatalogoOptions = {}) {
+export function useCatalogo({ tipo, liga, torneoId, excludeJugadorId }: UseCatalogoOptions = {}) {
   const [state, setState] = useState<CatalogoState>({
     equipos: [],
     loading: true,
@@ -49,14 +50,20 @@ export function useCatalogo({ tipo, liga, torneoId }: UseCatalogoOptions = {}) {
       // If tournament ID is provided, fetch taken teams
       let tomados = new Set<string>();
       if (torneoId) {
-        const { data: inscripciones, error: inscError } = await supabase
+        let query = supabase
           .from('torneo_inscripciones')
-          .select('catalogo_equipo_id')
+          .select('catalogo_equipo_id, jugador_id')
           .eq('torneo_id', torneoId)
           .in('estado', ['pendiente', 'confirmada']);
 
+        const { data: inscripciones, error: inscError } = await query;
+
         if (!inscError && inscripciones) {
-          tomados = new Set(inscripciones.map((i) => i.catalogo_equipo_id));
+          // Exclude the current player's own inscription so their team appears available
+          const filtered = excludeJugadorId
+            ? inscripciones.filter((i: any) => i.jugador_id !== excludeJugadorId)
+            : inscripciones;
+          tomados = new Set(filtered.map((i: any) => i.catalogo_equipo_id));
         }
       }
 
@@ -73,7 +80,7 @@ export function useCatalogo({ tipo, liga, torneoId }: UseCatalogoOptions = {}) {
         error: err.message || 'Error al cargar equipos',
       }));
     }
-  }, [tipo, liga, torneoId]);
+  }, [tipo, liga, torneoId, excludeJugadorId]);
 
   // Subscribe to realtime changes on inscriptions (detect taken teams)
   useEffect(() => {

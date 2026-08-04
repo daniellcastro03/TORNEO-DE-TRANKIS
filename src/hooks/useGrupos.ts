@@ -63,55 +63,44 @@ export function useGrupos(torneoId: string | undefined) {
       let jugadoresMap: Record<string, GrupoJugadorConDetalles[]> = {};
 
       if (grupoIds.length > 0) {
-        const { data: gjData, error: gjErr } = await supabase
+        // Step 1: Fetch group players with basic player info
+        const { data: gjData } = await supabase
           .from('grupo_jugadores')
-          .select(`
-            *,
-            jugadores:jugador_id (nombre, foto_url),
-            torneo_inscripciones!inner (
-              catalogo_equipo_id,
-              catalogos_equipos:catalogo_equipo_id (nombre, escudo_url)
-            )
-          `)
+          .select('*, jugadores:jugador_id (nombre, foto_url)')
           .in('grupo_id', grupoIds);
 
-        // Fallback: simpler query if the join fails
-        if (gjErr) {
-          const { data: simpleGj } = await supabase
-            .from('grupo_jugadores')
-            .select('*, jugadores:jugador_id (nombre, foto_url)')
-            .in('grupo_id', grupoIds);
+        // Step 2: Fetch inscriptions for THIS tournament to get team escudo/nombre
+        const { data: inscData } = await supabase
+          .from('torneo_inscripciones')
+          .select('jugador_id, catalogos_equipos:catalogo_equipo_id(*)')
+          .eq('torneo_id', torneoId);
 
-          if (simpleGj) {
-            for (const gj of simpleGj as any[]) {
-              const grupoId = gj.grupo_id;
-              if (!jugadoresMap[grupoId]) jugadoresMap[grupoId] = [];
-              jugadoresMap[grupoId].push({
-                ...gj,
-                jugador_nombre: gj.jugadores?.nombre,
-                jugador_foto: gj.jugadores?.foto_url,
-                equipo_nombre: '',
-                equipo_escudo: null,
-              });
+        // Build a map of jugador_id -> team info
+        const equipoMap: Record<string, { nombre: string; escudo_url: string | null }> = {};
+        if (inscData) {
+          for (const insc of inscData as any[]) {
+            if (insc.catalogos_equipos) {
+              equipoMap[insc.jugador_id] = {
+                nombre: insc.catalogos_equipos.nombre || '',
+                escudo_url: insc.catalogos_equipos.escudo_url || null,
+              };
             }
           }
-        } else if (gjData) {
+        }
+
+        if (gjData) {
           for (const gj of gjData as any[]) {
             const grupoId = gj.grupo_id;
             if (!jugadoresMap[grupoId]) jugadoresMap[grupoId] = [];
 
-            // Navigate through the join
-            const inscripcion = Array.isArray(gj.torneo_inscripciones)
-              ? gj.torneo_inscripciones[0]
-              : gj.torneo_inscripciones;
-            const equipo = inscripcion?.catalogos_equipos;
+            const teamInfo = equipoMap[gj.jugador_id];
 
             jugadoresMap[grupoId].push({
               ...gj,
               jugador_nombre: gj.jugadores?.nombre,
               jugador_foto: gj.jugadores?.foto_url,
-              equipo_nombre: equipo?.nombre || '',
-              equipo_escudo: equipo?.escudo_url || null,
+              equipo_nombre: teamInfo?.nombre || '',
+              equipo_escudo: teamInfo?.escudo_url || null,
             });
           }
         }

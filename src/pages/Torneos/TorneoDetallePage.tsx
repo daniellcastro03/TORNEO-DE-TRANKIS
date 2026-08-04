@@ -276,7 +276,7 @@ export default function TorneoDetallePage() {
 
   const estadoConfig = ESTADO_CONFIG[torneo.estado];
   const puedeInscribirse = torneo.estado === 'inscripciones' && !miInscripcion && !!user;
-  const puedeCambiarEquipo = torneo.estado === 'inscripciones' && torneo.permite_cambio_equipo && miInscripcion;
+  const puedeCambiarEquipo = torneo.estado === 'inscripciones' && miInscripcion;
   const puedeCancelar = torneo.estado === 'inscripciones' && miInscripcion;
   const isFull = inscripciones.length >= torneo.max_jugadores;
 

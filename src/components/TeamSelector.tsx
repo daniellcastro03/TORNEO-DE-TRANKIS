@@ -17,7 +17,7 @@ export default function TeamSelector({
   tipo,
   liga,
   torneoId,
-  jugadorId: _jugadorId,
+  jugadorId,
   selectedTeamId,
   onSelect,
   disabled = false,
@@ -26,6 +26,7 @@ export default function TeamSelector({
     tipo,
     liga: liga || undefined,
     torneoId,
+    excludeJugadorId: jugadorId || undefined,
   });
   const [search, setSearch] = useState('');
 

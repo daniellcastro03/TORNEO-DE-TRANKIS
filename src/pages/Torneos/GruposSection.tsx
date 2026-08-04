@@ -11,7 +11,7 @@ import {
 } from '../../hooks/useGrupos';
 import { calcularDistribucion } from '../../hooks/useBracket';
 import type { Torneo, Partido, CriteriosClasificacion } from '../../types/database';
-import { Shuffle, Trash2, Gamepad2, Info, LayoutGrid, ChevronDown, ChevronUp } from 'lucide-react';
+import { Shuffle, Trash2, Gamepad2, Info, LayoutGrid, ChevronDown, ChevronUp, Printer } from 'lucide-react';
 import './Grupos.css';
 
 interface GruposSectionProps {
@@ -262,6 +262,7 @@ export default function GruposSection({ torneo, jugadorIds }: GruposSectionProps
           {gruposOrdenados.map((grupo, i) => (
             <GrupoCard
               key={grupo.id}
+              torneo={torneo}
               grupo={grupo}
               partidos={partidos}
               criterios={criterios}
@@ -278,6 +279,7 @@ export default function GruposSection({ torneo, jugadorIds }: GruposSectionProps
         activeGroup && (
           <div className="grupo-panel">
             <GrupoCard
+              torneo={torneo}
               grupo={activeGroup}
               partidos={partidos}
               criterios={criterios}
@@ -297,6 +299,7 @@ export default function GruposSection({ torneo, jugadorIds }: GruposSectionProps
 // Single Group Card
 // ===========================
 function GrupoCard({
+  torneo,
   grupo,
   partidos,
   criterios,
@@ -306,6 +309,7 @@ function GrupoCard({
   animationDelay,
   onSelectGroup,
 }: {
+  torneo: Torneo;
   grupo: GrupoConJugadores;
   partidos: Partido[];
   criterios: CriteriosClasificacion;
@@ -323,6 +327,271 @@ function GrupoCard({
     criterios.puntos_victoria,
     criterios.puntos_empate
   );
+
+  const grupoPartidos = partidos.filter((p) => p.grupo_id === grupo.id);
+  const done = grupoPartidos.filter(p => p.estado === 'finalizado').length;
+  const clasificados = criterios.clasificados_por_grupo || 2;
+
+  function getRowStatus(row: ClasificacionRow): 'classified' | 'third' | 'eliminated' {
+    if (row.posicion <= clasificados) return 'classified';
+    if (mejoresTerceros > 0 && row.posicion === clasificados + 1) return 'third';
+    return 'eliminated';
+  }
+
+  const getInitials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+  // Next pending opponent for a player within this group
+  type OpponentInfo = { nombre: string; escudo: string | null; equipo: string } | null;
+  function getNextOpponent(jugadorId: string): OpponentInfo {
+    const pendientes = grupoPartidos
+      .filter(
+        (p) =>
+          p.estado === 'pendiente' &&
+          (p.jugador_local_id === jugadorId || p.jugador_visitante_id === jugadorId)
+      )
+      .sort((a, b) => {
+        const fa = Number(a.fecha) || 999;
+        const fb = Number(b.fecha) || 999;
+        return fa - fb;
+      });
+
+    if (pendientes.length === 0) return null;
+
+    const next = pendientes[0];
+    const rivalId =
+      next.jugador_local_id === jugadorId
+        ? next.jugador_visitante_id
+        : next.jugador_local_id;
+
+    const rivalInfo = grupo.jugadores.find((j) => j.jugador_id === rivalId);
+    if (!rivalInfo) return null;
+
+    return {
+      nombre: rivalInfo.jugador_nombre || '?',
+      escudo: rivalInfo.equipo_escudo || null,
+      equipo: rivalInfo.equipo_nombre || '',
+    };
+  }
+
+  const handleExportGroupPDF = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const tableRows = clasificacion.map((row) => {
+      const status = getRowStatus(row);
+      const statusClass = status === 'classified' ? 'cls' : status === 'third' ? 'thd' : 'elm';
+      
+      const avatarHtml = row.jugador_foto 
+        ? `<img src="${row.jugador_foto}" class="av" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="av-p" style="display:none">${getInitials(row.jugador_nombre)}</div>`
+        : `<div class="av-p">${getInitials(row.jugador_nombre)}</div>`;
+
+      const escudoHtml = row.equipo_escudo
+        ? `<img src="${row.equipo_escudo}" class="esc" onerror="this.style.display='none'">`
+        : '';
+
+      const rival = getNextOpponent(row.jugador_id);
+      let rivalHtml = '';
+      if (!rival) {
+        rivalHtml = '<span class="rv-done">✅ Completo</span>';
+      } else {
+        const rivalEscudo = rival.escudo
+          ? `<img src="${rival.escudo}" class="rv-esc" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="rv-esc-p" style="display:none">${rival.equipo.charAt(0).toUpperCase()}</span>`
+          : `<span class="rv-esc-p">${rival.equipo.charAt(0).toUpperCase()}</span>`;
+        rivalHtml = `<div class="rv-wrap">${rivalEscudo}<span class="rv-name">${rival.equipo || rival.nombre}</span></div>`;
+      }
+
+      return `<tr class="tr-row ${statusClass}">
+        <td><span class="pos ${statusClass}">${row.posicion}</span></td>
+        <td>
+          <div class="p-info">
+            ${avatarHtml}
+            <span class="p-name">${row.jugador_nombre}</span>
+            ${escudoHtml}
+            <span class="t-name">${row.equipo_nombre || '—'}</span>
+          </div>
+        </td>
+        <td>${row.pj}</td>
+        <td>${row.pg}</td>
+        <td>${row.pe}</td>
+        <td>${row.pp}</td>
+        <td>${row.gf}</td>
+        <td>${row.gc}</td>
+        <td class="dg-val">${row.dg > 0 ? `+${row.dg}` : row.dg}</td>
+        <td class="pts-val">${row.pts}</td>
+        <td>${rivalHtml}</td>
+      </tr>`;
+    }).join('');
+
+    const matchesByRound = Object.entries(
+      grupoPartidos.reduce((acc, p) => {
+        const f = p.fecha || '?';
+        if (!acc[f]) acc[f] = [];
+        acc[f].push(p);
+        return acc;
+      }, {} as Record<string, Partido[]>)
+    )
+      .sort(([a], [b]) => (a === '?' ? 1 : b === '?' ? -1 : Number(a) - Number(b)))
+      .map(([fecha, ps]) => {
+        const isHabilitada = (criterios.fechas_habilitadas || ['1']).includes(fecha);
+        const matchesHTML = ps.map((p) => {
+          const localInfo = grupo.jugadores.find((j) => j.jugador_id === p.jugador_local_id);
+          const visitInfo = grupo.jugadores.find((j) => j.jugador_id === p.jugador_visitante_id);
+          
+          const localEscudo = localInfo?.equipo_escudo
+            ? `<img src="${localInfo.equipo_escudo}" class="m-esc">`
+            : '';
+          const visitEscudo = visitInfo?.equipo_escudo
+            ? `<img src="${visitInfo.equipo_escudo}" class="m-esc">`
+            : '';
+
+          const scoreHtml = p.estado === 'finalizado'
+            ? `<span class="m-score">${p.goles_local} - ${p.goles_visitante}</span>`
+            : '<span class="m-vs">vs</span>';
+
+          return `<div class="match-item">
+            <div class="m-team loc">
+              <span class="m-team-name">${localInfo?.equipo_nombre || localInfo?.jugador_nombre || '?'}</span>
+              ${localEscudo}
+            </div>
+            <div class="m-score-wrap">${scoreHtml}</div>
+            <div class="m-team vis">
+              ${visitEscudo}
+              <span class="m-team-name">${visitInfo?.equipo_nombre || visitInfo?.jugador_nombre || '?'}</span>
+            </div>
+          </div>`;
+        }).join('');
+
+        return `<div class="round-block">
+          <div class="round-title">${isHabilitada ? '🔓' : '🔒'} Jornada ${fecha}</div>
+          <div class="round-matches">${matchesHTML}</div>
+        </div>`;
+      }).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Grupo ${grupo.nombre}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui, -apple-system, sans-serif;background:#0f172a;color:#f8fafc;padding:30px}
+.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;border-bottom:2px solid #38bdf8;padding-bottom:16px}
+.hdr-title{display:flex;align-items:center;gap:12px}
+.g-pill{background:#38bdf8;color:#0f172a;font-weight:900;padding:4px 10px;border-radius:6px;font-size:14px}
+.g-name{font-size:24px;font-weight:800;letter-spacing:-0.5px}
+.hdr-meta{text-align:right;color:#94a3b8;font-size:13px}
+.tbl{width:100%;border-collapse:collapse;margin-bottom:32px;background:#1e293b;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)}
+.tbl th{background:#334155;color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:12px 10px;text-align:center}
+.tbl th:nth-child(2){text-align:left}
+.tbl td{padding:14px 10px;text-align:center;border-bottom:1px solid #334155;font-size:14px;color:#cbd5e1;vertical-align:middle}
+.tbl td:nth-child(2){text-align:left}
+.tbl tr:last-child td{border-bottom:none}
+.tr-row.cls{border-left:4px solid #10b981;background:rgba(16,185,129,0.02)}
+.tr-row.thd{border-left:4px solid #f59e0b;background:rgba(245,158,11,0.02)}
+.tr-row.elm{border-left:4px solid #ef4444}
+.pos{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-weight:700;font-size:12px}
+.pos.cls{background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3)}
+.pos.thd{background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3)}
+.pos.elm{background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.25)}
+.p-info{display:flex;align-items:center;gap:8px}
+.av{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid #475569}
+.av-p{width:28px;height:28px;border-radius:50%;background:#0284c7;color:#fff;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center}
+.p-name{font-weight:600;color:#f1f5f9}
+.esc{width:20px;height:20px;object-fit:contain}
+.t-name{font-size:12px;color:#94a3b8}
+.dg-val{font-weight:600}
+.tr-row.cls .dg-val{color:#10b981}
+.tr-row.elm .dg-val{color:#ef4444}
+.pts-val{font-weight:800;color:#38bdf8;font-size:15px}
+.rv-wrap{display:flex;align-items:center;justify-content:center;gap:6px}
+.rv-esc{width:24px;height:24px;object-fit:contain}
+.rv-esc-p{width:24px;height:24px;border-radius:6px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#38bdf8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.rv-name{font-size:12px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px}
+.rv-done{font-size:12px;color:#94a3b8}
+.m-sect-title{font-size:16px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;border-bottom:1px solid #334155;padding-bottom:8px}
+.m-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:16px}
+.round-block{background:#1e293b;border-radius:12px;padding:14px;border:1px solid #334155}
+.round-title{font-size:11px;font-weight:800;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;border-bottom:1px dashed #334155;padding-bottom:6px;margin-bottom:10px}
+.round-matches{display:flex;flex-direction:column;gap:8px}
+.match-item{display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+.match-item:last-child{border-bottom:none}
+.m-team{flex:1;display:flex;align-items:center;gap:6px;overflow:hidden}
+.m-team.loc{justify-content:flex-end;text-align:right}
+.m-team.vis{justify-content:flex-start}
+.m-team-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-esc{width:16px;height:16px;object-fit:contain}
+.m-score-wrap{min-width:60px;text-align:center;font-weight:700}
+.m-score{color:#38bdf8}
+.m-vs{color:#64748b;font-size:10px;text-transform:uppercase}
+@media print{
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff;color:#000;padding:0}
+  .hdr{border-bottom-color:#000}
+  .g-pill{background:#eee;border:1px solid #ccc;color:#000}
+  .g-name{color:#000}
+  .tbl{background:#fff;box-shadow:none;border:1px solid #ccc}
+  .tbl th{background:#f1f5f9;color:#475569;border-bottom:2px solid #ccc}
+  .tbl td{border-bottom:1px solid #e2e8f0;color:#334155}
+  .pos.cls{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+  .pos.thd{background:#fef3c7;color:#92400e;border-color:#fde68a}
+  .pos.elm{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+  .p-name{color:#000}
+  .t-name{color:#475569}
+  .pts-val{color:#0284c7}
+  .round-block{background:#fff;border-color:#ccc}
+  .round-title{color:#000;border-bottom-color:#ccc}
+  .match-item{border-bottom-color:#eee}
+  .m-score{color:#0284c7}
+}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="hdr-title">
+    <span class="g-pill">GRUPO</span>
+    <span class="g-name">${grupo.nombre}</span>
+  </div>
+  <div class="hdr-meta">
+    <div><strong>Torneo:</strong> ${torneo.nombre}</div>
+    <div>Fase de Grupos</div>
+  </div>
+</div>
+
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Jugador / Equipo</th>
+      <th>PJ</th>
+      <th>PG</th>
+      <th>PE</th>
+      <th>PP</th>
+      <th>GF</th>
+      <th>GC</th>
+      <th>DG</th>
+      <th>PTS</th>
+      <th>Próximo</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${tableRows}
+  </tbody>
+</table>
+
+<div class="m-sect-title">Calendario y Resultados</div>
+<div class="m-grid">
+  ${matchesByRound}
+</div>
+
+<script>setTimeout(function(){window.print();},1000);</script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=1100,height=850');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  };
 
   const grupoPartidos = partidos.filter((p) => p.grupo_id === grupo.id);
   const done = grupoPartidos.filter(p => p.estado === 'finalizado').length;
@@ -393,6 +662,14 @@ function GrupoCard({
           {grupo.nombre}
         </h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={handleExportGroupPDF}
+            title="Imprimir PDF del Grupo"
+            style={{ padding: '4px', height: 'auto', display: 'flex', alignItems: 'center', color: 'var(--color-text-muted)', border: 'none', background: 'none', cursor: 'pointer' }}
+          >
+            <Printer size={13} style={{ color: 'var(--color-neon)' }} />
+          </button>
           <span className="grupo-card-progress">
             <span className={`grupo-card-progress-dot ${done > 0 ? 'done' : ''}`} />
             {done}/{grupoPartidos.length}
@@ -405,6 +682,7 @@ function GrupoCard({
       </div>
 
       {/* Classification Table */}
+      <div className="tabla-scroll-wrapper">
       <table className="tabla-clasificacion">
         <thead>
           <tr>
@@ -462,10 +740,14 @@ function GrupoCard({
                         className="tabla-escudo"
                         onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
                       />
-                    ) : (
-                      <span className="tabla-escudo-emoji">⚽</span>
-                    )}
-                    <span className="tabla-equipo-nombre" title={row.equipo_nombre}>{row.equipo_nombre}</span>
+                    ) : null}
+                    <span
+                      className="tabla-equipo-nombre"
+                      title={row.equipo_nombre}
+                      style={!row.equipo_escudo ? { fontWeight: 600 } : {}}
+                    >
+                      {row.equipo_nombre || '—'}
+                    </span>
                   </div>
                 </td>
                 <td>{row.pj}</td>
@@ -515,6 +797,7 @@ function GrupoCard({
           })}
         </tbody>
       </table>
+      </div>
 
       {/* Group Matches */}
       {grupoPartidos.length > 0 && (

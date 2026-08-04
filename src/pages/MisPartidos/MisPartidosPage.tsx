@@ -110,7 +110,14 @@ export default function MisPartidosPage() {
                     <Trophy size={12} />
                     {p.torneo_nombre || 'Torneo'}
                   </span>
-                  <span className="match-fase">{FASE_LABELS[p.fase] || p.fase}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    {p.fecha && (
+                      <span className="match-fecha-badge">
+                        📅 Fecha {p.fecha}
+                      </span>
+                    )}
+                    <span className="match-fase">{FASE_LABELS[p.fase] || p.fase}</span>
+                  </div>
                 </div>
 
                 <div className="match-card-body">

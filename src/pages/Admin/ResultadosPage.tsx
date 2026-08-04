@@ -101,7 +101,15 @@ function PartidosEditor({
   const [saving, setSaving] = useState(false);
   const [openingDate, setOpeningDate] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const fechasHabilitadas: string[] = torneo.criterios_json?.fechas_habilitadas || ['1'];
+  // Local copy of enabled dates — initialized from torneo prop, updated after habilitarFecha
+  const [fechasHabilitadas, setFechasHabilitadas] = useState<string[]>(
+    torneo.criterios_json?.fechas_habilitadas || ['1']
+  );
+
+  // Sync when torneo changes (different tournament selected)
+  useEffect(() => {
+    setFechasHabilitadas(torneo.criterios_json?.fechas_habilitadas || ['1']);
+  }, [torneoId]);
 
   const [playerMap, setPlayerMap] = useState<Record<string, { nombre: string; escudo: string | null }>>({});
 
@@ -109,7 +117,7 @@ function PartidosEditor({
     async function load() {
       const { data } = await supabase
         .from('torneo_inscripciones')
-        .select('jugador_id, jugadores:jugador_id (nombre), catalogos_equipos:catalogo_equipo_id (nombre, escudo_url)')
+        .select('jugador_id, jugadores:jugador_id (nombre), catalogos_equipos:catalogo_equipo_id (*)')
         .eq('torneo_id', torneoId);
       if (data) {
         const map: Record<string, { nombre: string; escudo: string | null }> = {};
@@ -184,7 +192,11 @@ function PartidosEditor({
     const { error } = await habilitarFecha(torneoId, fecha);
     setOpeningDate(null);
     if (error) showToast(error, 'error');
-    else { showToast(`¡Jornada ${fecha} habilitada!`, 'success'); refetch(); }
+    else {
+      showToast(`¡Jornada ${fecha} habilitada!`, 'success');
+      setFechasHabilitadas(prev => prev.includes(fecha) ? prev : [...prev, fecha]);
+      refetch();
+    }
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;

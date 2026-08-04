@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGrupos } from '../../hooks/useGrupos';
 import { supabase } from '../../lib/supabase';
@@ -10,7 +10,7 @@ import {
   avanzarFase,
 } from '../../hooks/useBracket';
 import type { Torneo, Partido, FasePartido, CriteriosClasificacion } from '../../types/database';
-import { Zap, ChevronRight, Trophy, Download, Image as ImageIcon } from 'lucide-react';
+import { Zap, ChevronRight, Trophy, FileText } from 'lucide-react';
 import './Bracket.css';
 
 const FASE_LABELS: Record<string, string> = {
@@ -22,9 +22,11 @@ const FASE_LABELS: Record<string, string> = {
 };
 
 const FASE_ORDER: FasePartido[] = ['octavos', 'cuartos', 'semifinal', 'tercer_puesto', 'final'];
+const BRACKET_PHASES: FasePartido[] = ['octavos', 'cuartos', 'semifinal', 'final'];
 
 interface PlayerInfo {
-  nombre: string;
+  nombre: string;        // Nombre del equipo
+  jugadorNombre: string; // Nombre real del jugador
   escudo: string | null;
   foto_url: string | null;
 }
@@ -34,13 +36,102 @@ interface BracketSectionProps {
   inscripcionesCount: number;
 }
 
+// ── Inner components ────────────────────────────────────────────
+
+function WcTeamRow({
+  info,
+  score,
+  isWinner,
+  isLoser,
+  noBorder,
+}: {
+  info: PlayerInfo;
+  score: number | null;
+  isWinner: boolean;
+  isLoser: boolean;
+  noBorder?: boolean;
+}) {
+  return (
+    <div
+      className={`wc-team-row ${isWinner ? 'winner' : isLoser ? 'loser' : ''}`}
+      style={noBorder ? { borderBottom: 'none' } : {}}
+    >
+      <div className="wc-team-content">
+        <span className="wc-player-name" title={info.jugadorNombre}>
+          {info.jugadorNombre}
+        </span>
+        <div className="wc-team-logo-wrap">
+          {info.escudo ? (
+            <img
+              src={info.escudo}
+              alt={info.nombre}
+              className="wc-team-logo"
+              onError={(e) => {
+                const el = e.target as HTMLImageElement;
+                el.style.display = 'none';
+                const sib = el.nextElementSibling as HTMLElement | null;
+                if (sib) sib.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div
+            className="wc-team-logo-placeholder"
+            style={{ display: info.escudo ? 'none' : 'flex' }}
+          >
+            {info.nombre.charAt(0).toUpperCase()}
+          </div>
+        </div>
+      </div>
+      <span className={`wc-score ${isWinner ? 'winner' : ''}`}>
+        {score !== null ? score : '—'}
+      </span>
+    </div>
+  );
+}
+
+function WcMatchCard({
+  match: m,
+  getPlayerInfo,
+  isFinal,
+}: {
+  match: Partido;
+  getPlayerInfo: (id: string) => PlayerInfo;
+  isFinal?: boolean;
+}) {
+  const localInfo = getPlayerInfo(m.jugador_local_id);
+  const visitInfo = getPlayerInfo(m.jugador_visitante_id);
+  const finished = m.estado === 'finalizado' && m.goles_local !== null && m.goles_visitante !== null;
+  const localWins = finished && m.goles_local! > m.goles_visitante!;
+  const visitWins = finished && m.goles_visitante! > m.goles_local!;
+
+  return (
+    <div className={`wc-match-card ${isFinal ? 'wc-final-card' : ''}`}>
+      <WcTeamRow
+        info={localInfo}
+        score={finished ? m.goles_local! : null}
+        isWinner={localWins}
+        isLoser={finished && !localWins}
+      />
+      <div className="wc-match-divider" />
+      <WcTeamRow
+        info={visitInfo}
+        score={finished ? m.goles_visitante! : null}
+        isWinner={visitWins}
+        isLoser={finished && !visitWins}
+        noBorder
+      />
+    </div>
+  );
+}
+
+// ── Main component ───────────────────────────────────────────────
+
 export default function BracketSection({ torneo, inscripcionesCount }: BracketSectionProps) {
   const { isAdmin } = useAuth();
   const { grupos, partidos, loading, refetch } = useGrupos(torneo.id);
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [playerMap, setPlayerMap] = useState<Record<string, PlayerInfo>>({});
-  const bracketRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadPlayerMap() {
@@ -58,6 +149,7 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
         for (const insc of data as any[]) {
           map[insc.jugador_id] = {
             nombre: insc.catalogos_equipos?.nombre || insc.jugadores?.nombre || '?',
+            jugadorNombre: insc.jugadores?.nombre || '?',
             escudo: insc.catalogos_equipos?.escudo_url || null,
             foto_url: insc.jugadores?.foto_url || null,
           };
@@ -77,16 +169,22 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
     if (playerMap[jugadorId]) return playerMap[jugadorId];
     for (const g of grupos) {
       const j = g.jugadores.find((jg) => jg.jugador_id === jugadorId);
-      if (j) return { nombre: j.equipo_nombre || j.jugador_nombre || '?', escudo: j.equipo_escudo || null, foto_url: j.jugador_foto || null };
+      if (j) return {
+        nombre: j.equipo_nombre || j.jugador_nombre || '?',
+        jugadorNombre: j.jugador_nombre || '?',
+        escudo: j.equipo_escudo || null,
+        foto_url: j.jugador_foto || null,
+      };
     }
-    return { nombre: 'Jugador', escudo: null, foto_url: null };
+    return { nombre: 'Jugador', jugadorNombre: 'Jugador', escudo: null, foto_url: null };
   };
 
   const criterios = torneo.criterios_json as CriteriosClasificacion;
   const config = calcularDistribucion(inscripcionesCount);
 
   const grupoPartidos = partidos.filter((p) => p.fase === 'grupos');
-  const gruposCompletos = grupoPartidos.length > 0 && grupoPartidos.every((p) => p.estado === 'finalizado');
+  const gruposCompletos =
+    grupoPartidos.length > 0 && grupoPartidos.every((p) => p.estado === 'finalizado');
 
   const matchesByPhase: Record<string, Partido[]> = {};
   for (const f of FASE_ORDER) {
@@ -95,15 +193,24 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
   const hasKnockout = FASE_ORDER.some((f) => matchesByPhase[f].length > 0);
 
   const finalMatch = matchesByPhase['final']?.[0];
-  const championId = finalMatch?.estado === 'finalizado' && finalMatch.goles_local !== null && finalMatch.goles_visitante !== null
-    ? (finalMatch.goles_local > finalMatch.goles_visitante ? finalMatch.jugador_local_id : finalMatch.jugador_visitante_id)
-    : null;
+  const championId =
+    finalMatch?.estado === 'finalizado' &&
+    finalMatch.goles_local !== null &&
+    finalMatch.goles_visitante !== null
+      ? finalMatch.goles_local > finalMatch.goles_visitante
+        ? finalMatch.jugador_local_id
+        : finalMatch.jugador_visitante_id
+      : null;
 
   const handleGenerarEliminatoria = async () => {
     if (!confirm('¿Generar la fase eliminatoria con cruces estilo Mundial (A1 vs B2, etc.)?')) return;
     setActionLoading(true);
-    const clasificados = obtenerClasificados(grupos, partidos, config, criterios.puntos_victoria, criterios.puntos_empate);
-    const cruces = generarCrucesMundial(clasificados.primeros, clasificados.segundos, clasificados.mejoresTerceros, config);
+    const clasificados = obtenerClasificados(
+      grupos, partidos, config, criterios.puntos_victoria, criterios.puntos_empate
+    );
+    const cruces = generarCrucesMundial(
+      clasificados.primeros, clasificados.segundos, clasificados.mejoresTerceros, config
+    );
     if (cruces.length === 0) {
       showToast('No hay suficientes clasificados para generar la eliminatoria', 'error');
       setActionLoading(false);
@@ -117,20 +224,163 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
 
   const handleAvanzar = async (fase: FasePartido) => {
     const pendientes = matchesByPhase[fase].filter((p) => p.estado === 'pendiente');
-    if (pendientes.length > 0) { showToast(`Aún hay ${pendientes.length} partido(s) pendientes`, 'error'); return; }
+    if (pendientes.length > 0) {
+      showToast(`Aún hay ${pendientes.length} partido(s) pendientes`, 'error');
+      return;
+    }
     setActionLoading(true);
     const { error } = await avanzarFase(torneo.id, partidos, fase);
     setActionLoading(false);
     if (error) showToast(error, 'error');
-    else { showToast('¡Fase avanzada!', 'success'); refetch(); }
+    else { showToast('¡Fase avanzada! Bracket actualizado.', 'success'); refetch(); }
   };
 
-  // Export bracket as image via browser print (PDF-friendly)
-  const handleExportPrint = () => {
-    window.print();
+  // ── PDF Export (solo el bracket) ────────────────────────────────
+  const handleExportBracketPDF = () => {
+    const activeFases = BRACKET_PHASES.filter((f) => matchesByPhase[f]?.length > 0);
+    const tercerPuesto = matchesByPhase['tercer_puesto']?.[0];
+
+    const teamRowHTML = (
+      info: PlayerInfo,
+      goles: number | null,
+      finished: boolean,
+      wins: boolean,
+      loses: boolean,
+    ) => {
+      const logoHtml = info.escudo
+        ? `<img src="${info.escudo}" alt="" class="pl" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="pp" style="display:none">${info.nombre.charAt(0)}</div>`
+        : `<div class="pp">${info.nombre.charAt(0)}</div>`;
+      return `<div class="tr ${wins ? 'win' : loses ? 'los' : ''}">
+        <div class="tc">
+          <span class="pn">${info.jugadorNombre}</span>
+          <div class="lw">${logoHtml}</div>
+        </div>
+        <span class="sc">${finished ? goles : '—'}</span>
+      </div>`;
+    };
+
+    let roundsHTML = '';
+    for (const fase of activeFases) {
+      const matches = matchesByPhase[fase];
+      let matchesHTML = '';
+      for (const m of matches) {
+        const li = getPlayerInfo(m.jugador_local_id);
+        const vi = getPlayerInfo(m.jugador_visitante_id);
+        const fin = m.estado === 'finalizado';
+        const lw = fin && (m.goles_local ?? 0) > (m.goles_visitante ?? 0);
+        const vw = fin && (m.goles_visitante ?? 0) > (m.goles_local ?? 0);
+        matchesHTML += `<div class="ms">
+          <div class="mc ${fase === 'final' ? 'mf' : ''}">
+            ${teamRowHTML(li, m.goles_local, fin, lw, fin && !lw)}
+            <div class="md"></div>
+            ${teamRowHTML(vi, m.goles_visitante, fin, vw, fin && !vw)}
+          </div>
+        </div>`;
+      }
+      roundsHTML += `<div class="rc">
+        <div class="rh"><span class="rt">${FASE_LABELS[fase]}</span></div>
+        <div class="rm">${matchesHTML}</div>
+      </div>`;
+    }
+
+    let tercerHTML = '';
+    if (tercerPuesto) {
+      const li = getPlayerInfo(tercerPuesto.jugador_local_id);
+      const vi = getPlayerInfo(tercerPuesto.jugador_visitante_id);
+      const fin = tercerPuesto.estado === 'finalizado';
+      const lw = fin && (tercerPuesto.goles_local ?? 0) > (tercerPuesto.goles_visitante ?? 0);
+      const vw = fin && (tercerPuesto.goles_visitante ?? 0) > (tercerPuesto.goles_local ?? 0);
+      tercerHTML = `<div class="tp">
+        <div class="tpt">🥉 3er y 4to Puesto</div>
+        <div class="mc">
+          ${teamRowHTML(li, tercerPuesto.goles_local, fin, lw, fin && !lw)}
+          <div class="md"></div>
+          ${teamRowHTML(vi, tercerPuesto.goles_visitante, fin, vw, fin && !vw)}
+        </div>
+      </div>`;
+    }
+
+    let champHTML = '';
+    if (championId) {
+      const ch = getPlayerInfo(championId);
+      champHTML = `<div class="ch">
+        <div class="ct">🏆</div>
+        ${ch.escudo ? `<img src="${ch.escudo}" alt="" class="cl">` : `<div class="cp">${ch.nombre.charAt(0)}</div>`}
+        <div class="cn">${ch.jugadorNombre}</div>
+        <div class="ce">${ch.nombre}</div>
+        <div class="cl2">CAMPEÓN DEL TORNEO</div>
+      </div>`;
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Bracket — ${torneo.nombre}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#4a0012;color:#fff;padding:20px;min-height:100vh}
+.hdr{text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid rgba(255,215,0,0.3)}
+.ht{font-size:26px;font-weight:900;letter-spacing:3px;text-transform:uppercase;color:#ffd700}
+.hs{font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:3px;text-transform:uppercase;margin-top:4px}
+.bw{display:flex;gap:6px;align-items:stretch;justify-content:center;flex-wrap:wrap}
+.rc{display:flex;flex-direction:column;min-width:190px;max-width:210px}
+.rh{text-align:center;margin-bottom:10px}
+.rt{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#ffd700;border:1px solid rgba(255,215,0,0.3);border-radius:20px;padding:3px 10px;background:rgba(255,215,0,0.07);display:inline-block}
+.rm{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:8px}
+.ms{display:flex;align-items:center}
+.mc{width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;overflow:hidden}
+.mf{border-color:rgba(255,215,0,0.5);box-shadow:0 0 16px rgba(255,215,0,0.2)}
+.tr{display:flex;align-items:center;padding:7px 10px;gap:8px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.tr:last-child{border-bottom:none}
+.tr.win{background:rgba(255,215,0,0.1)}
+.tr.los{opacity:0.4}
+.tc{flex:1;display:flex;align-items:center;gap:7px;min-width:0}
+.pn{font-size:10px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,0.85)}
+.tr.win .pn{color:#ffd700;font-weight:700}
+.lw{flex-shrink:0}
+.pl{width:38px;height:38px;object-fit:contain;border-radius:4px;display:block}
+.pp{width:38px;height:38px;border-radius:8px;background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.35);color:#ffd700;font-weight:900;font-size:15px;display:flex;align-items:center;justify-content:center}
+.sc{font-size:18px;font-weight:900;min-width:26px;text-align:center;color:rgba(255,255,255,0.5);margin-left:4px}
+.tr.win .sc{color:#ffd700}
+.md{height:1px;background:rgba(255,255,255,0.1)}
+.tp{margin-top:24px;padding-top:20px;border-top:1px dashed rgba(255,255,255,0.15);display:flex;flex-direction:column;align-items:center;gap:10px}
+.tpt{font-size:12px;font-weight:700;color:#cd7f32;text-transform:uppercase;letter-spacing:2px}
+.tp .mc{min-width:190px;max-width:220px}
+.ch{text-align:center;margin-top:24px;padding:20px;background:rgba(255,215,0,0.08);border:2px solid rgba(255,215,0,0.4);border-radius:16px;max-width:220px;margin:24px auto 0}
+.ct{font-size:44px;margin-bottom:8px}
+.ch img,.cl{width:56px;height:56px;object-fit:contain;margin:0 auto 8px;display:block}
+.cp{width:56px;height:56px;border-radius:12px;background:rgba(255,215,0,0.2);color:#ffd700;font-size:22px;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 8px}
+.cn{font-size:17px;font-weight:900;color:#ffd700}
+.ce{font-size:11px;color:rgba(255,215,0,0.7);margin-top:2px}
+.cl2{font-size:9px;letter-spacing:3px;color:rgba(255,215,0,0.5);text-transform:uppercase;margin-top:6px}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="ht">⚽ ${torneo.nombre}</div>
+  <div class="hs">Fase Eliminatoria — Llaves del Torneo</div>
+</div>
+<div class="bw">${roundsHTML}</div>
+${tercerHTML}
+${champHTML}
+<script>setTimeout(function(){window.print();},1200);</script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=1400,height=900');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
   };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+      <div className="spinner" />
+    </div>
+  );
 
   const grupoFinalizados = grupoPartidos.filter((p) => p.estado === 'finalizado').length;
 
@@ -147,6 +397,14 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
     );
   }
 
+  const bracketPhases = BRACKET_PHASES.filter((f) => matchesByPhase[f]?.length > 0);
+  const tercerPuestoMatch = matchesByPhase['tercer_puesto']?.[0] || null;
+
+  // Calculate bracket height for proper alignment
+  const firstRoundCount = bracketPhases.length > 0 ? matchesByPhase[bracketPhases[0]].length : 1;
+  const MATCH_UNIT = 107; // height per match slot (card ~95px + 12px padding)
+  const bracketHeight = Math.max(firstRoundCount * MATCH_UNIT, 280);
+
   return (
     <div className="fade-in">
       {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
@@ -162,8 +420,10 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
             {getPlayerInfo(championId).escudo && (
               <img src={getPlayerInfo(championId).escudo!} alt="" className="champion-escudo" />
             )}
-            <div className="champion-name">{getPlayerInfo(championId).nombre}</div>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>¡CAMPEÓN DEL TORNEO!</p>
+            <div className="champion-name">{getPlayerInfo(championId).jugadorNombre}</div>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
+              🎉 ¡CAMPEÓN DEL TORNEO!
+            </p>
           </div>
         </div>
       )}
@@ -189,104 +449,95 @@ export default function BracketSection({ torneo, inscripcionesCount }: BracketSe
         </div>
       )}
 
-      {/* Bracket visualization */}
+      {/* Bracket */}
       {hasKnockout && (
         <>
-          {/* Export toolbar */}
+          {/* Toolbar */}
           <div className="bracket-toolbar no-print">
             <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-              🏆 {torneo.nombre}
+              🏆 {torneo.nombre} — Llaves
             </span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-ghost btn-sm" onClick={handleExportPrint} title="Exportar / Imprimir">
-                <Download size={15} /> PDF / Imprimir
-              </button>
-            </div>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleExportBracketPDF}
+              title="Descargar PDF del bracket"
+            >
+              <FileText size={15} /> Descargar PDF
+            </button>
           </div>
 
-          <div className="bracket-container" ref={bracketRef} id="bracket-exportable">
-            <div className="bracket-rounds">
-              {FASE_ORDER.map((fase) => {
+          {/* World Cup style bracket */}
+          <div className="wc-bracket-scroll" id="bracket-exportable">
+            <div className="wc-rounds-row" style={{ minHeight: `${bracketHeight}px` }}>
+              {bracketPhases.map((fase) => {
                 const matches = matchesByPhase[fase];
-                if (matches.length === 0) return null;
-
                 const allFinished = matches.every((m) => m.estado === 'finalizado');
-                const nextFaseIndex = FASE_ORDER.indexOf(fase) + 1;
-                const nextFase = fase === 'semifinal' ? 'final' : FASE_ORDER[nextFaseIndex];
+                const faseIdx = FASE_ORDER.indexOf(fase);
+                const nextFase = fase === 'semifinal' ? 'final' : FASE_ORDER[faseIdx + 1];
                 const nextExists = nextFase && matchesByPhase[nextFase]?.length > 0;
 
                 return (
-                  <div key={fase} className="bracket-round">
-                    <span className="bracket-round-title">
-                      {fase === 'tercer_puesto' ? '🥉 3er Puesto' : FASE_LABELS[fase]}
-                    </span>
-
-                    {matches.map((m) => {
-                      const localInfo = getPlayerInfo(m.jugador_local_id);
-                      const visitInfo = getPlayerInfo(m.jugador_visitante_id);
-                      const finished = m.estado === 'finalizado' && m.goles_local !== null && m.goles_visitante !== null;
-                      const localWins = finished && m.goles_local! > m.goles_visitante!;
-                      const visitWins = finished && m.goles_visitante! > m.goles_local!;
-                      const isFinal = fase === 'final';
-
-                      return (
-                        <div key={m.id} className={`bracket-match ${isFinal ? 'bracket-final' : ''}`}>
-                          {/* Local */}
-                          <div className={`bracket-team-row ${localWins ? 'winner' : finished && !localWins ? 'loser' : ''}`}>
-                            <div className="bracket-team-identity">
-                              {localInfo.foto_url ? (
-                                <img src={localInfo.foto_url} alt="" className="bracket-player-avatar" />
-                              ) : (
-                                <div className="bracket-player-avatar-placeholder">
-                                  {localInfo.nombre.charAt(0)}
-                                </div>
-                              )}
-                              {localInfo.escudo ? (
-                                <img src={localInfo.escudo} alt="" className="bracket-team-shield" />
-                              ) : (
-                                <span className="bracket-team-shield-emoji">⚽</span>
-                              )}
-                              <span className="bracket-team-name">{localInfo.nombre}</span>
-                            </div>
-                            <span className="bracket-team-score">{finished ? m.goles_local : '-'}</span>
-                          </div>
-                          {/* Visitante */}
-                          <div className={`bracket-team-row ${visitWins ? 'winner' : finished && !visitWins ? 'loser' : ''}`}>
-                            <div className="bracket-team-identity">
-                              {visitInfo.foto_url ? (
-                                <img src={visitInfo.foto_url} alt="" className="bracket-player-avatar" />
-                              ) : (
-                                <div className="bracket-player-avatar-placeholder">
-                                  {visitInfo.nombre.charAt(0)}
-                                </div>
-                              )}
-                              {visitInfo.escudo ? (
-                                <img src={visitInfo.escudo} alt="" className="bracket-team-shield" />
-                              ) : (
-                                <span className="bracket-team-shield-emoji">⚽</span>
-                              )}
-                              <span className="bracket-team-name">{visitInfo.nombre}</span>
-                            </div>
-                            <span className="bracket-team-score">{finished ? m.goles_visitante : '-'}</span>
-                          </div>
+                  <div key={fase} className="wc-round-col">
+                    <div className="wc-round-header">
+                      <span className="wc-round-title">{FASE_LABELS[fase]}</span>
+                    </div>
+                    <div className="wc-round-matches">
+                      {matches.map((m) => (
+                        <div key={m.id} className="wc-match-slot">
+                          <WcMatchCard
+                            match={m}
+                            getPlayerInfo={getPlayerInfo}
+                            isFinal={fase === 'final'}
+                          />
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
 
+                    {/* Advance phase button */}
                     {isAdmin && allFinished && !nextExists && fase !== 'final' && fase !== 'tercer_puesto' && (
                       <button
                         className={`btn btn-primary btn-sm no-print ${actionLoading ? 'btn-loading' : ''}`}
                         onClick={() => handleAvanzar(fase)}
                         disabled={actionLoading}
-                        style={{ marginTop: 'var(--space-sm)', width: '100%' }}
+                        style={{ marginTop: '0.75rem', width: '100%' }}
                       >
-                        <ChevronRight size={14} /> Avanzar a {FASE_LABELS[nextFase] || 'siguiente fase'}
+                        <ChevronRight size={14} /> Avanzar a {FASE_LABELS[nextFase] || 'sig. fase'}
                       </button>
                     )}
                   </div>
                 );
               })}
             </div>
+
+            {/* Tercer puesto */}
+            {tercerPuestoMatch && (() => {
+              const li = getPlayerInfo(tercerPuestoMatch.jugador_local_id);
+              const vi = getPlayerInfo(tercerPuestoMatch.jugador_visitante_id);
+              const fin = tercerPuestoMatch.estado === 'finalizado';
+              const lw = fin && (tercerPuestoMatch.goles_local ?? 0) > (tercerPuestoMatch.goles_visitante ?? 0);
+              const vw = fin && (tercerPuestoMatch.goles_visitante ?? 0) > (tercerPuestoMatch.goles_local ?? 0);
+              return (
+                <div className="wc-tercer-puesto">
+                  <div className="wc-tercer-label">🥉 3er y 4to Puesto</div>
+                  <div className="wc-match-card">
+                    <WcTeamRow
+                      info={li}
+                      score={fin ? tercerPuestoMatch.goles_local! : null}
+                      isWinner={lw}
+                      isLoser={fin && !lw}
+                    />
+                    <div className="wc-match-divider" />
+                    <WcTeamRow
+                      info={vi}
+                      score={fin ? tercerPuestoMatch.goles_visitante! : null}
+                      isWinner={vw}
+                      isLoser={fin && !vw}
+                      noBorder
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </>
       )}
