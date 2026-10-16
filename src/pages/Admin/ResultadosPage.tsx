@@ -137,20 +137,26 @@ function PartidosEditor({
 
   const toggleSection = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
 
-  const getPlayerName = (id: string): string => {
+  const getPlayerInfo = (id: string): { equipo: string; jugador: string; escudo: string | null } => {
     for (const g of grupos) {
       const j = g.jugadores.find((jg) => jg.jugador_id === id);
-      if (j) return j.equipo_nombre || j.jugador_nombre || 'Jugador';
+      if (j) return {
+        equipo: j.equipo_nombre || j.jugador_nombre || 'Jugador',
+        jugador: j.jugador_nombre || '',
+        escudo: j.equipo_escudo || null,
+      };
     }
-    return playerMap[id]?.nombre || 'Jugador';
+    const pm = playerMap[id];
+    return {
+      equipo: pm?.nombre || 'Jugador',
+      jugador: '',
+      escudo: pm?.escudo || null,
+    };
   };
 
-  const getPlayerEscudo = (id: string): string | null => {
-    for (const g of grupos) {
-      const j = g.jugadores.find((jg) => jg.jugador_id === id);
-      if (j) return j.equipo_escudo || null;
-    }
-    return playerMap[id]?.escudo || null;
+  const getPlayerName = (id: string): string => {
+    const info = getPlayerInfo(id);
+    return info.equipo;
   };
 
   const startEdit = (p: Partido) => {
@@ -243,21 +249,26 @@ function PartidosEditor({
   }
 
   function renderMatchCard(p: Partido, isHabilitado: boolean) {
-    const localName = getPlayerName(p.jugador_local_id);
-    const visitName = getPlayerName(p.jugador_visitante_id);
-    const localEscudo = getPlayerEscudo(p.jugador_local_id);
-    const visitEscudo = getPlayerEscudo(p.jugador_visitante_id);
+    const localInfo = getPlayerInfo(p.jugador_local_id);
+    const visitInfo = getPlayerInfo(p.jugador_visitante_id);
     const isEditing = editingMatch === p.id;
 
     return (
       <div key={p.id} className="match-card" style={{ marginBottom: '0.5rem', opacity: isHabilitado ? 1 : 0.55 }}>
         <div className="match-card-body">
           <div className="match-team">
-            {localEscudo
-              ? <img src={localEscudo} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-              : <div className="equipo-escudo-placeholder" style={{ width: 32, height: 32, fontSize: '0.8rem' }}>{localName[0]}</div>
+            {localInfo.escudo
+              ? <img src={localInfo.escudo} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+              : <div className="equipo-escudo-placeholder" style={{ width: 32, height: 32, fontSize: '0.8rem' }}>{localInfo.equipo[0]}</div>
             }
-            <span className="match-team-name" style={{ fontSize: '0.75rem' }}>{localName}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span className="match-team-name" style={{ fontSize: '0.75rem' }}>{localInfo.equipo}</span>
+              {localInfo.jugador && localInfo.jugador !== localInfo.equipo && (
+                <span style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {localInfo.jugador}
+                </span>
+              )}
+            </div>
           </div>
           <div className="match-score-center">
             {isEditing ? (
@@ -277,11 +288,18 @@ function PartidosEditor({
             )}
           </div>
           <div className="match-team">
-            {visitEscudo
-              ? <img src={visitEscudo} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-              : <div className="equipo-escudo-placeholder" style={{ width: 32, height: 32, fontSize: '0.8rem' }}>{visitName[0]}</div>
+            {visitInfo.escudo
+              ? <img src={visitInfo.escudo} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+              : <div className="equipo-escudo-placeholder" style={{ width: 32, height: 32, fontSize: '0.8rem' }}>{visitInfo.equipo[0]}</div>
             }
-            <span className="match-team-name" style={{ fontSize: '0.75rem' }}>{visitName}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span className="match-team-name" style={{ fontSize: '0.75rem' }}>{visitInfo.equipo}</span>
+              {visitInfo.jugador && visitInfo.jugador !== visitInfo.equipo && (
+                <span style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {visitInfo.jugador}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.5rem' }}>
