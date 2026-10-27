@@ -10,6 +10,7 @@ import {
   User,
   Settings,
   Crown,
+  Medal,
 } from 'lucide-react';
 import './Layout.css';
 
@@ -123,6 +124,15 @@ export default function MainLayout() {
         >
           <Crown size={22} className="nav-icon" style={{ color: '#FFD700' }} />
           <span>Fama</span>
+        </NavLink>
+
+        <NavLink
+          to="/liga"
+          className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
+          id="nav-liga"
+        >
+          <Medal size={22} className="nav-icon" style={{ color: '#3b82f6' }} />
+          <span>Liga</span>
         </NavLink>
 
         {user && (

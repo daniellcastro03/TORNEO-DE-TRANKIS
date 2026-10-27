@@ -2,7 +2,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, ListOrdered, Shield, Gamepad2, ClipboardList, Users } from 'lucide-react';
+import { Plus, ListOrdered, Shield, Gamepad2, ClipboardList, Users, Medal } from 'lucide-react';
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
@@ -80,6 +80,15 @@ export default function AdminPage() {
       route: '/admin/resultados',
       disabled: false,
       badge: null,
+    },
+    {
+      icon: Medal,
+      title: 'Modo Liga',
+      desc: 'Crea y gestiona ligas con Primera/Segunda División y FA Cup',
+      route: '/admin/liga',
+      disabled: false,
+      badge: null,
+      highlight: true,
     },
   ];
 

@@ -18,6 +18,9 @@ import CrearTorneoPage from './pages/Admin/CrearTorneoPage';
 import ResultadosPage from './pages/Admin/ResultadosPage';
 import InscripcionesAdminPage from './pages/Admin/InscripcionesAdminPage';
 import JugadoresAdminPage from './pages/Admin/JugadoresAdminPage';
+import LigaPage from './pages/Liga/LigaPage';
+import LigaDetallePage from './pages/Liga/LigaDetallePage';
+import LigaAdminPage from './pages/Admin/LigaAdminPage';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -118,6 +121,17 @@ function AppRoutes() {
           element={
             <ProtectedRoute requireAdmin>
               <JugadoresAdminPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Liga Mode */}
+        <Route path="/liga" element={<LigaPage />} />
+        <Route path="/liga/:id" element={<LigaDetallePage />} />
+        <Route
+          path="/admin/liga"
+          element={
+            <ProtectedRoute requireAdmin>
+              <LigaAdminPage />
             </ProtectedRoute>
           }
         />

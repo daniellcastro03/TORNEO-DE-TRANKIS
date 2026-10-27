@@ -125,6 +125,47 @@ export interface TrofeoSalonFama {
   torneo?: { nombre: string };
 }
 
+// ============================================================
+// Liga Mode Types (Premier League style)
+// ============================================================
+
+export type EstadoLiga = 'configuracion' | 'en_curso' | 'finalizada';
+export type DivisionLiga = 'primera' | 'segunda';
+export type CompeticionLiga = 'primera' | 'segunda' | 'fa_cup';
+export type FaseLiga = 'liga' | 'ronda_32' | 'ronda_16' | 'octavos' | 'cuartos' | 'semifinal' | 'final';
+
+export interface Liga {
+  id: string;
+  nombre: string;
+  estado: EstadoLiga;
+  ida_vuelta: boolean;
+  created_by: string;
+  created_at: string;
+}
+
+export interface LigaJugador {
+  id: string;
+  liga_id: string;
+  jugador_id: string;
+  division: DivisionLiga;
+  activo: boolean;
+  created_at: string;
+}
+
+export interface LigaPartido {
+  id: string;
+  liga_id: string;
+  competicion: CompeticionLiga;
+  fase: FaseLiga;
+  jornada: number | null;
+  jugador_local_id: string;
+  jugador_visitante_id: string;
+  goles_local: number | null;
+  goles_visitante: number | null;
+  estado: 'pendiente' | 'finalizado';
+  created_at: string;
+}
+
 // Supabase Database interface for typed client
 export interface Database {
   public: {
@@ -181,6 +222,21 @@ export interface Database {
       };
       salon_fama: {
         Row: TrofeoSalonFama;
+        Insert: any;
+        Update: any;
+      };
+      ligas: {
+        Row: Liga;
+        Insert: any;
+        Update: any;
+      };
+      liga_jugadores: {
+        Row: LigaJugador;
+        Insert: any;
+        Update: any;
+      };
+      liga_partidos: {
+        Row: LigaPartido;
         Insert: any;
         Update: any;
       };
