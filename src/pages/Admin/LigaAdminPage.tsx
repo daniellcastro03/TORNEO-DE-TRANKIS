@@ -11,7 +11,7 @@ import type { Jugador, DivisionLiga } from '../../types/database';
 import { ArrowLeft, Plus, Users, UserPlus, Check, Repeat } from 'lucide-react';
 import '../Liga/Liga.css';
 
-const MIN_JUGADORES = 2; // min per division (real min is 12, relaxed here for testing)
+const MIN_JUGADORES = 2; // mínimo para guardar (el real de la liga es 12, pero 2 permite testing)
 const MAX_JUGADORES = 16;
 
 function getInitials(name: string) {
