@@ -573,3 +573,99 @@ export async function fetchAllJugadores(): Promise<Jugador[]> {
     .order('nombre', { ascending: true });
   return (data || []) as Jugador[];
 }
+
+// =============================================
+// Player Substitution
+// =============================================
+
+/**
+ * Sustituye un jugador en una liga sin dañar los partidos ya jugados.
+ *
+ * Lo que hace:
+ * 1. Marca al jugador saliente como inactivo (preserva su historial)
+ * 2. Registra al nuevo jugador en liga_jugadores con la misma división
+ * 3. Reemplaza al jugador saliente por el entrante en todos los partidos
+ *    PENDIENTES (estado = 'pendiente') de la misma competición y liga
+ *
+ * Los partidos finalizados quedan intactos.
+ */
+export async function sustituirJugadorLiga(
+  ligaId: string,
+  jugadorSalienteId: string,
+  jugadorEntranteId: string,
+  division: DivisionLiga
+): Promise<{ error: string | null; partidosSustituidos: number }> {
+  try {
+    // 1. Marcar al jugador saliente como inactivo
+    const { error: inactivoError } = await supabase
+      .from('liga_jugadores')
+      .update({ activo: false })
+      .eq('liga_id', ligaId)
+      .eq('jugador_id', jugadorSalienteId);
+    if (inactivoError) throw new Error(inactivoError.message);
+
+    // 2. Agregar al jugador entrante (si ya existe en la liga, actualizar a activo)
+    const { error: insertError } = await supabase
+      .from('liga_jugadores')
+      .insert({ liga_id: ligaId, jugador_id: jugadorEntranteId, division, activo: true });
+
+    if (insertError) {
+      // Si ya existe (ej: anteriormente fue removido), reactivarlo y actualizar división
+      if (insertError.message.includes('duplicate') || insertError.message.includes('unique')) {
+        const { error: updateError } = await supabase
+          .from('liga_jugadores')
+          .update({ activo: true, division })
+          .eq('liga_id', ligaId)
+          .eq('jugador_id', jugadorEntranteId);
+        if (updateError) throw new Error(updateError.message);
+      } else {
+        throw new Error(insertError.message);
+      }
+    }
+
+    // 3. Obtener partidos PENDIENTES donde participa el jugador saliente
+    const { data: pendientesLocal, error: e1 } = await supabase
+      .from('liga_partidos')
+      .select('id')
+      .eq('liga_id', ligaId)
+      .eq('estado', 'pendiente')
+      .eq('jugador_local_id', jugadorSalienteId);
+    if (e1) throw new Error(e1.message);
+
+    const { data: pendientesVisitante, error: e2 } = await supabase
+      .from('liga_partidos')
+      .select('id')
+      .eq('liga_id', ligaId)
+      .eq('estado', 'pendiente')
+      .eq('jugador_visitante_id', jugadorSalienteId);
+    if (e2) throw new Error(e2.message);
+
+    let sustituidos = 0;
+
+    // Reemplazar donde era local
+    if (pendientesLocal && pendientesLocal.length > 0) {
+      const ids = pendientesLocal.map((p: any) => p.id);
+      const { error: updLocal } = await supabase
+        .from('liga_partidos')
+        .update({ jugador_local_id: jugadorEntranteId })
+        .in('id', ids);
+      if (updLocal) throw new Error(updLocal.message);
+      sustituidos += ids.length;
+    }
+
+    // Reemplazar donde era visitante
+    if (pendientesVisitante && pendientesVisitante.length > 0) {
+      const ids = pendientesVisitante.map((p: any) => p.id);
+      const { error: updVisit } = await supabase
+        .from('liga_partidos')
+        .update({ jugador_visitante_id: jugadorEntranteId })
+        .in('id', ids);
+      if (updVisit) throw new Error(updVisit.message);
+      sustituidos += ids.length;
+    }
+
+    return { error: null, partidosSustituidos: sustituidos };
+  } catch (err: any) {
+    return { error: err.message, partidosSustituidos: 0 };
+  }
+}

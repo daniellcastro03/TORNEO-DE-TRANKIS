@@ -16,6 +16,7 @@ import {
   toggleActivoJugador,
   agregarJugadorLiga,
   fetchAllJugadores,
+  sustituirJugadorLiga,
 } from '../../hooks/useLiga';
 import DivisionTable from './DivisionTable';
 import FACupBracket from './FACupBracket';
@@ -23,7 +24,7 @@ import type { LigaPartido, Jugador, DivisionLiga } from '../../types/database';
 import {
   ArrowLeft, Trophy, Users, Play, StopCircle, Trash2,
   ChevronDown, ChevronRight, Save, RotateCcw, Shuffle,
-  UserMinus, UserCheck, Settings, X, Plus, UserPlus
+  UserMinus, UserCheck, Settings, X, Plus, UserPlus, ArrowLeftRight
 } from 'lucide-react';
 import './Liga.css';
 
@@ -60,6 +61,11 @@ export default function LigaDetallePage() {
   const [addingDiv, setAddingDiv] = useState<DivisionLiga | null>(null);
   const [selectedNewPlayer, setSelectedNewPlayer] = useState<string>('');
   const [addingPlayerLoading, setAddingPlayerLoading] = useState(false);
+
+  // Substitution state
+  const [substitutingPlayerId, setSubstitutingPlayerId] = useState<string | null>(null);
+  const [selectedSubstitute, setSelectedSubstitute] = useState<string>('');
+  const [substitutingLoading, setSubstitutingLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'gestionar' && isAdmin) {
@@ -182,6 +188,41 @@ export default function LigaDetallePage() {
       showToast('Jugador añadido exitosamente', 'success');
       setSelectedNewPlayer('');
       setAddingDiv(null);
+      refetch();
+    }
+  };
+
+  const handleSustituir = async (jugadorSalienteId: string, division: DivisionLiga) => {
+    if (!id || !selectedSubstitute) return;
+    const saliente = jugadores.find(j => j.jugador_id === jugadorSalienteId);
+    const entrante = allJugadores.find(j => j.id === selectedSubstitute);
+    if (!saliente || !entrante) return;
+
+    if (!confirm(
+      `¿Sustituir a ${saliente.jugador_nombre} por ${entrante.nombre}?\n\n` +
+      `• Los partidos YA JUGADOS por ${saliente.jugador_nombre} se conservan intactos.\n` +
+      `• Los partidos PENDIENTES pasarán a nombre de ${entrante.nombre}.\n` +
+      `• ${saliente.jugador_nombre} quedará marcado como inactivo.`
+    )) return;
+
+    setSubstitutingLoading(true);
+    const { error, partidosSustituidos } = await sustituirJugadorLiga(
+      id,
+      jugadorSalienteId,
+      selectedSubstitute,
+      division
+    );
+    setSubstitutingLoading(false);
+
+    if (error) {
+      showToast(`Error: ${error}`, 'error');
+    } else {
+      showToast(
+        `✅ ${entrante.nombre} sustituye a ${saliente.jugador_nombre}. ${partidosSustituidos} partido(s) pendiente(s) actualizados.`,
+        'success'
+      );
+      setSubstitutingPlayerId(null);
+      setSelectedSubstitute('');
       refetch();
     }
   };
@@ -671,34 +712,95 @@ export default function LigaDetallePage() {
                     borderRadius: 'var(--radius-sm)',
                     marginBottom: '0.35rem',
                     opacity: j.activo ? 1 : 0.6,
+                    flexDirection: 'column',
+                    alignItems: 'stretch',
                   }}
                 >
-                  {j.jugador_foto ? (
-                    <img src={j.jugador_foto} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                  ) : (
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#2bcc10,#39FF14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 800, color: '#000', flexShrink: 0 }}>
-                      {getInitials(j.jugador_nombre)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {j.jugador_foto ? (
+                      <img src={j.jugador_foto} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#2bcc10,#39FF14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 800, color: '#000', flexShrink: 0 }}>
+                        {getInitials(j.jugador_nombre)}
+                      </div>
+                    )}
+                    <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {j.jugador_nombre} {!j.activo && <span style={{ color: 'var(--color-danger)', fontSize: '0.65rem' }}>(Inactivo)</span>}
+                    </span>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        setSubstitutingPlayerId(substitutingPlayerId === j.jugador_id ? null : j.jugador_id);
+                        setSelectedSubstitute('');
+                      }}
+                      style={{ padding: '2px 6px', color: 'var(--color-neon)', fontSize: '0.65rem' }}
+                      title="Sustituir jugador"
+                    >
+                      <ArrowLeftRight size={12} />
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleToggleActivo(j.jugador_id, j.activo, j.jugador_nombre)}
+                      style={{ padding: '2px 6px', color: j.activo ? 'var(--color-text-muted)' : 'var(--color-neon)', fontSize: '0.65rem' }}
+                      title={j.activo ? 'Marcar como inactivo / abandonó' : 'Reactivar'}
+                    >
+                      {j.activo ? <UserMinus size={12} /> : <UserCheck size={12} />}
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleRemover(j.jugador_id, j.jugador_nombre)}
+                      style={{ padding: '2px 6px', color: 'var(--color-danger)', fontSize: '0.65rem' }}
+                      title="Remover de la liga"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+
+                  {/* Panel de sustitución inline */}
+                  {substitutingPlayerId === j.jugador_id && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.65rem',
+                      background: 'rgba(57,255,20,0.05)',
+                      border: '1px solid var(--color-border-neon)',
+                      borderRadius: 'var(--radius-sm)',
+                    }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-neon)', fontWeight: 700, marginBottom: '0.4rem' }}>
+                        🔄 Sustituir a {j.jugador_nombre} por:
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
+                        Los partidos jugados se conservan. Solo los pendientes cambian al nuevo jugador.
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <select
+                          value={selectedSubstitute}
+                          onChange={e => setSelectedSubstitute(e.target.value)}
+                          style={{ flex: 1, padding: '0.35rem', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)', border: '1px solid var(--color-border-neon)', color: 'var(--color-text)', fontSize: '0.72rem' }}
+                        >
+                          <option value="">Seleccionar sustituto...</option>
+                          {allJugadores
+                            .filter(jj => !jugadores.some(lj => lj.jugador_id === jj.id && lj.activo))
+                            .map(jj => (
+                              <option key={jj.id} value={jj.id}>{jj.nombre}</option>
+                            ))}
+                        </select>
+                        <button
+                          className={`btn btn-primary btn-sm ${substitutingLoading ? 'btn-loading' : ''}`}
+                          onClick={() => handleSustituir(j.jugador_id, 'primera')}
+                          disabled={!selectedSubstitute || substitutingLoading}
+                          title="Confirmar sustitución"
+                        >
+                          <ArrowLeftRight size={13} />
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => { setSubstitutingPlayerId(null); setSelectedSubstitute(''); }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
                     </div>
                   )}
-                  <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {j.jugador_nombre} {!j.activo && <span style={{ color: 'var(--color-danger)', fontSize: '0.65rem' }}>(Inactivo)</span>}
-                  </span>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => handleToggleActivo(j.jugador_id, j.activo, j.jugador_nombre)}
-                    style={{ padding: '2px 6px', color: j.activo ? 'var(--color-text-muted)' : 'var(--color-neon)', fontSize: '0.65rem' }}
-                    title={j.activo ? 'Marcar como inactivo / abandonó' : 'Reactivar'}
-                  >
-                    {j.activo ? <UserMinus size={12} /> : <UserCheck size={12} />}
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => handleRemover(j.jugador_id, j.jugador_nombre)}
-                    style={{ padding: '2px 6px', color: 'var(--color-danger)', fontSize: '0.65rem' }}
-                    title="Remover de la liga"
-                  >
-                    <Trash2 size={12} />
-                  </button>
                 </div>
               ))}
             </div>
@@ -764,34 +866,95 @@ export default function LigaDetallePage() {
                     borderRadius: 'var(--radius-sm)',
                     marginBottom: '0.35rem',
                     opacity: j.activo ? 1 : 0.6,
+                    flexDirection: 'column',
+                    alignItems: 'stretch',
                   }}
                 >
-                  {j.jugador_foto ? (
-                    <img src={j.jugador_foto} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                  ) : (
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
-                      {getInitials(j.jugador_nombre)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {j.jugador_foto ? (
+                      <img src={j.jugador_foto} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                        {getInitials(j.jugador_nombre)}
+                      </div>
+                    )}
+                    <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {j.jugador_nombre} {!j.activo && <span style={{ color: 'var(--color-danger)', fontSize: '0.65rem' }}>(Inactivo)</span>}
+                    </span>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        setSubstitutingPlayerId(substitutingPlayerId === j.jugador_id ? null : j.jugador_id);
+                        setSelectedSubstitute('');
+                      }}
+                      style={{ padding: '2px 6px', color: '#3b82f6', fontSize: '0.65rem' }}
+                      title="Sustituir jugador"
+                    >
+                      <ArrowLeftRight size={12} />
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleToggleActivo(j.jugador_id, j.activo, j.jugador_nombre)}
+                      style={{ padding: '2px 6px', color: j.activo ? 'var(--color-text-muted)' : '#3b82f6', fontSize: '0.65rem' }}
+                      title={j.activo ? 'Marcar como inactivo / abandonó' : 'Reactivar'}
+                    >
+                      {j.activo ? <UserMinus size={12} /> : <UserCheck size={12} />}
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleRemover(j.jugador_id, j.jugador_nombre)}
+                      style={{ padding: '2px 6px', color: 'var(--color-danger)', fontSize: '0.65rem' }}
+                      title="Remover de la liga"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+
+                  {/* Panel de sustitución inline */}
+                  {substitutingPlayerId === j.jugador_id && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.65rem',
+                      background: 'rgba(59,130,246,0.05)',
+                      border: '1px solid rgba(59,130,246,0.35)',
+                      borderRadius: 'var(--radius-sm)',
+                    }}>
+                      <div style={{ fontSize: '0.7rem', color: '#3b82f6', fontWeight: 700, marginBottom: '0.4rem' }}>
+                        🔄 Sustituir a {j.jugador_nombre} por:
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
+                        Los partidos jugados se conservan. Solo los pendientes cambian al nuevo jugador.
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <select
+                          value={selectedSubstitute}
+                          onChange={e => setSelectedSubstitute(e.target.value)}
+                          style={{ flex: 1, padding: '0.35rem', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)', border: '1px solid rgba(59,130,246,0.4)', color: 'var(--color-text)', fontSize: '0.72rem' }}
+                        >
+                          <option value="">Seleccionar sustituto...</option>
+                          {allJugadores
+                            .filter(jj => !jugadores.some(lj => lj.jugador_id === jj.id && lj.activo))
+                            .map(jj => (
+                              <option key={jj.id} value={jj.id}>{jj.nombre}</option>
+                            ))}
+                        </select>
+                        <button
+                          className={`btn btn-primary btn-sm ${substitutingLoading ? 'btn-loading' : ''}`}
+                          onClick={() => handleSustituir(j.jugador_id, 'segunda')}
+                          disabled={!selectedSubstitute || substitutingLoading}
+                          title="Confirmar sustitución"
+                        >
+                          <ArrowLeftRight size={13} />
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => { setSubstitutingPlayerId(null); setSelectedSubstitute(''); }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
                     </div>
                   )}
-                  <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {j.jugador_nombre} {!j.activo && <span style={{ color: 'var(--color-danger)', fontSize: '0.65rem' }}>(Inactivo)</span>}
-                  </span>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => handleToggleActivo(j.jugador_id, j.activo, j.jugador_nombre)}
-                    style={{ padding: '2px 6px', color: j.activo ? 'var(--color-text-muted)' : '#3b82f6', fontSize: '0.65rem' }}
-                    title={j.activo ? 'Marcar como inactivo / abandonó' : 'Reactivar'}
-                  >
-                    {j.activo ? <UserMinus size={12} /> : <UserCheck size={12} />}
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => handleRemover(j.jugador_id, j.jugador_nombre)}
-                    style={{ padding: '2px 6px', color: 'var(--color-danger)', fontSize: '0.65rem' }}
-                    title="Remover de la liga"
-                  >
-                    <Trash2 size={12} />
-                  </button>
                 </div>
               ))}
             </div>
