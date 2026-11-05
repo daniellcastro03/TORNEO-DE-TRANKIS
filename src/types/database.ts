@@ -149,6 +149,7 @@ export interface LigaJugador {
   jugador_id: string;
   division: DivisionLiga;
   activo: boolean;
+  sustituto_de_id?: string | null;
   created_at: string;
 }
 

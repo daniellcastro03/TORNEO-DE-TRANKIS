@@ -90,6 +90,11 @@ export default function DivisionTable({ clasificacion, division, totalJugadores 
                     </div>
                     <span className="premier-player-name" title={row.jugador_nombre}>
                       {row.jugador_nombre}
+                      {row.sustituto_de_nombre && (
+                        <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', marginLeft: '0.35rem', fontWeight: 400 }}>
+                          (sust. a {row.sustituto_de_nombre})
+                        </span>
+                      )}
                       {isMe && (
                         <span style={{ fontSize: '0.6rem', color: 'var(--color-neon)', marginLeft: '0.3rem' }}>(Tú)</span>
                       )}

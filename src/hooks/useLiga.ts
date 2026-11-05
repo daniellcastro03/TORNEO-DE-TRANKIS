@@ -23,6 +23,7 @@ export interface ClasificacionLigaRow {
   jugador_id: string;
   jugador_nombre: string;
   jugador_foto: string | null;
+  sustituto_de_nombre?: string | null;
   pj: number;
   pg: number;
   pe: number;
@@ -235,19 +236,45 @@ export function calcularClasificacionLiga(
     p => p.competicion === division && p.fase === 'liga' && p.estado === 'finalizado'
   );
 
-  const rows: ClasificacionLigaRow[] = divJugadores.map(j => ({
-    jugador_id: j.jugador_id,
-    jugador_nombre: j.jugador_nombre,
-    jugador_foto: j.jugador_foto,
-    pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dg: 0, pts: 0, posicion: 0,
-    forma: [],
-  }));
+  // Mapear cada jugador activo para saber si sustituye a alguien
+  const rows: ClasificacionLigaRow[] = divJugadores.map(j => {
+    let sustitutoDeNombre: string | null = null;
+    if (j.sustituto_de_id) {
+      const original = jugadores.find(orig => orig.jugador_id === j.sustituto_de_id);
+      if (original) sustitutoDeNombre = original.jugador_nombre;
+    }
+
+    return {
+      jugador_id: j.jugador_id,
+      jugador_nombre: j.jugador_nombre,
+      jugador_foto: j.jugador_foto,
+      sustituto_de_nombre: sustitutoDeNombre,
+      pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dg: 0, pts: 0, posicion: 0,
+      forma: [],
+    };
+  });
+
+  // Función auxiliar para encontrar la fila que acumula los puntos de un jugador
+  // Si jugó un jugador anterior que fue sustituido, los puntos se le suman al sustituto activo
+  const findRowForPlayer = (playerId: string) => {
+    // 1. Directamente si está activo
+    const directRow = rows.find(r => r.jugador_id === playerId);
+    if (directRow) return directRow;
+
+    // 2. Si es un jugador inactivo que fue sustituido, encontrar a su sustituto
+    const sustituto = divJugadores.find(j => j.sustituto_de_id === playerId);
+    if (sustituto) {
+      return rows.find(r => r.jugador_id === sustituto.jugador_id);
+    }
+
+    return undefined;
+  };
 
   for (const p of divPartidos) {
     if (p.goles_local === null || p.goles_visitante === null) continue;
 
-    const local = rows.find(r => r.jugador_id === p.jugador_local_id);
-    const visitante = rows.find(r => r.jugador_id === p.jugador_visitante_id);
+    const local = findRowForPlayer(p.jugador_local_id);
+    const visitante = findRowForPlayer(p.jugador_visitante_id);
 
     if (local) {
       local.pj++;
@@ -605,18 +632,45 @@ export async function sustituirJugadorLiga(
     if (inactivoError) throw new Error(inactivoError.message);
 
     // 2. Agregar al jugador entrante (si ya existe en la liga, actualizar a activo)
-    const { error: insertError } = await supabase
+    const payloadInsert: any = {
+      liga_id: ligaId,
+      jugador_id: jugadorEntranteId,
+      division,
+      activo: true,
+      sustituto_de_id: jugadorSalienteId,
+    };
+
+    let { error: insertError } = await supabase
       .from('liga_jugadores')
-      .insert({ liga_id: ligaId, jugador_id: jugadorEntranteId, division, activo: true });
+      .insert(payloadInsert);
+
+    // Si la columna sustituto_de_id aún no existe en la base de datos Supabase, reintentar sin ella
+    if (insertError && insertError.message.includes('sustituto_de_id')) {
+      delete payloadInsert.sustituto_de_id;
+      const res = await supabase.from('liga_jugadores').insert(payloadInsert);
+      insertError = res.error;
+    }
 
     if (insertError) {
       // Si ya existe (ej: anteriormente fue removido), reactivarlo y actualizar división
       if (insertError.message.includes('duplicate') || insertError.message.includes('unique')) {
-        const { error: updateError } = await supabase
+        const updatePayload: any = { activo: true, division, sustituto_de_id: jugadorSalienteId };
+        let { error: updateError } = await supabase
           .from('liga_jugadores')
-          .update({ activo: true, division })
+          .update(updatePayload)
           .eq('liga_id', ligaId)
           .eq('jugador_id', jugadorEntranteId);
+
+        if (updateError && updateError.message.includes('sustituto_de_id')) {
+          delete updatePayload.sustituto_de_id;
+          const resUpd = await supabase
+            .from('liga_jugadores')
+            .update(updatePayload)
+            .eq('liga_id', ligaId)
+            .eq('jugador_id', jugadorEntranteId);
+          updateError = resUpd.error;
+        }
+
         if (updateError) throw new Error(updateError.message);
       } else {
         throw new Error(insertError.message);
