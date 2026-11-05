@@ -705,15 +705,16 @@ export default function LigaDetallePage() {
                 <div
                   key={j.id}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'stretch',
+                    gap: '0.5rem',
                     padding: '0.55rem 0.75rem',
                     background: j.activo ? 'var(--color-bg-card)' : 'rgba(255,59,59,0.04)',
                     border: `1px solid ${j.activo ? 'var(--color-border)' : 'rgba(255,59,59,0.2)'}`,
                     borderRadius: 'var(--radius-sm)',
                     marginBottom: '0.35rem',
                     opacity: j.activo ? 1 : 0.6,
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -859,15 +860,16 @@ export default function LigaDetallePage() {
                 <div
                   key={j.id}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'stretch',
+                    gap: '0.5rem',
                     padding: '0.55rem 0.75rem',
                     background: j.activo ? 'var(--color-bg-card)' : 'rgba(255,59,59,0.04)',
                     border: `1px solid ${j.activo ? 'var(--color-border)' : 'rgba(255,59,59,0.2)'}`,
                     borderRadius: 'var(--radius-sm)',
                     marginBottom: '0.35rem',
                     opacity: j.activo ? 1 : 0.6,
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
