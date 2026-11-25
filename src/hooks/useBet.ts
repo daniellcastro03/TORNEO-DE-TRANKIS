@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 // ── Types ──────────────────────────────────────────────────
 
-export type BetMercado = '1x2' | 'resultado_exacto' | 'goles_local' | 'goles_visitante' | 'total_goles';
+export type BetMercado = '1x2' | 'goles_local' | 'goles_visitante' | 'total_goles';
 export type BetEstado = 'pendiente' | 'ganado' | 'perdido';
 export type SelEstado = 'pendiente' | 'ganada' | 'perdida';
 
@@ -290,6 +290,59 @@ export async function eliminarCuota(cuotaId: string): Promise<{ error: string | 
   return { error: error?.message || null };
 }
 
+export async function autoCargarPartidosYCuotas(
+  jornadaId: string,
+  ligaId: string,
+  jornadaNumero: number
+): Promise<{ error: string | null; partidosCargados: number }> {
+  // 1. Get all liga_partidos for this liga + jornada number
+  const { data: ligaPartidos, error: lpErr } = await supabase
+    .from('liga_partidos')
+    .select('id')
+    .eq('liga_id', ligaId)
+    .eq('jornada', jornadaNumero)
+    .in('competicion', ['primera', 'segunda']);
+  if (lpErr) return { error: lpErr.message, partidosCargados: 0 };
+  if (!ligaPartidos || ligaPartidos.length === 0) return { error: null, partidosCargados: 0 };
+
+  // 2. Insert bet_partidos (skip already existing via upsert)
+  const inserts = ligaPartidos.map((lp: any) => ({ jornada_id: jornadaId, liga_partido_id: lp.id }));
+  const { data: bpInserted, error: bpErr } = await supabase
+    .from('bet_partidos')
+    .upsert(inserts, { onConflict: 'jornada_id,liga_partido_id', ignoreDuplicates: true })
+    .select('id, liga_partido_id');
+  if (bpErr) return { error: bpErr.message, partidosCargados: 0 };
+
+  const bpList: { id: string; liga_partido_id: string }[] = (bpInserted || []) as any[];
+
+  // 3. For each inserted bet_partido, insert default cuotas
+  if (bpList.length > 0) {
+    const defaultCuotas: any[] = [];
+    for (const bp of bpList) {
+      defaultCuotas.push(
+        { bet_partido_id: bp.id, mercado: '1x2', opcion: '1', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: '1x2', opcion: 'X', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: '1x2', opcion: '2', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+1.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+2.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+3.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+4.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'goles_local', opcion: '+1.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'goles_local', opcion: '+2.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'goles_local', opcion: '+3.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'goles_local', opcion: '+4.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+1.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+2.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+3.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+4.5', cuota: 1.80 },
+      );
+    }
+    await supabase.from('bet_cuotas').upsert(defaultCuotas, { onConflict: 'bet_partido_id,mercado,opcion', ignoreDuplicates: true });
+  }
+
+  return { error: null, partidosCargados: bpList.length };
+}
+
 export async function colocarBoleto(
   jornadaId: string,
   jugadorId: string,
@@ -297,6 +350,14 @@ export async function colocarBoleto(
   cuotaTotal: number
 ): Promise<{ data: BetBoleto | null; error: string | null }> {
   if (selecciones.length < 7) return { data: null, error: 'Debes seleccionar mínimo 7 partidos' };
+
+  // Check 1 boleto per player per jornada
+  const { count } = await supabase
+    .from('bet_boletos')
+    .select('id', { count: 'exact', head: true })
+    .eq('jornada_id', jornadaId)
+    .eq('jugador_id', jugadorId);
+  if ((count ?? 0) > 0) return { data: null, error: '¡Ya tienes un boleto en esta jornada! Solo se permite 1 por jornada.' };
 
   const ganancia = parseFloat((100 * cuotaTotal).toFixed(2));
   const { data: boleto, error: bErr } = await supabase
@@ -352,8 +413,6 @@ export async function resolverBoletos(ligaPartidoId: string): Promise<{ error: s
           if (cuota.opcion === '1') ganada = gl > gv;
           else if (cuota.opcion === 'X') ganada = gl === gv;
           else if (cuota.opcion === '2') ganada = gv > gl;
-        } else if (cuota.mercado === 'resultado_exacto') {
-          ganada = cuota.opcion === `${gl}-${gv}`;
         } else if (cuota.mercado === 'total_goles') {
           const total = gl + gv;
           const threshold = Math.abs(parseFloat(cuota.opcion));

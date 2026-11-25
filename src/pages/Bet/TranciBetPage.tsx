@@ -14,6 +14,7 @@ import {
   eliminarPartidoBet,
   colocarBoleto,
   toggleJornadaActiva,
+  autoCargarPartidosYCuotas,
   type BetCuota,
   type BetMercado,
   type BetPartidoDetalle,
@@ -30,7 +31,6 @@ function getInitials(n: string) {
 
 const MERCADO_LABELS: Record<BetMercado, string> = {
   '1x2': '1X2',
-  resultado_exacto: 'Resultado Exacto',
   goles_local: 'Goles Local',
   goles_visitante: 'Goles Visitante',
   total_goles: 'Total de Goles',
@@ -206,6 +206,8 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
   showToast: (msg: string, type: 'success' | 'error') => void;
 }) {
   const { partidos, loading, refetch } = useBetJornadaDetalle(jornadaId);
+  const { boletos: misBoletos, loading: boletosLoading } = useMisBoletos(jugadorId);
+  const yaAposto = misBoletos.some(b => b.jornada_id === jornadaId);
   const [selecciones, setSelecciones] = useState<Record<string, BetCuota>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -255,13 +257,23 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
     }
   };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>;
+  if (loading || boletosLoading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>;
 
   if (!jornadaActiva) return (
     <div className="card empty-state" style={{ padding: '2rem', textAlign: 'center' }}>
       <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔒</div>
       <h3>Jornada cerrada</h3>
       <p style={{ color: 'var(--color-text-muted)' }}>Esta jornada ya no acepta nuevas apuestas</p>
+    </div>
+  );
+
+  if (yaAposto) return (
+    <div className="card empty-state" style={{ padding: '2rem', textAlign: 'center', border: '1px solid rgba(212,160,23,0.4)' }}>
+      <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎫</div>
+      <h3 style={{ color: '#d4a017' }}>¡Ya tienes un boleto!</h3>
+      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+        Solo se permite <strong>1 boleto por jornada</strong>. Consulta tu boleto en la pestaña <em>Mis Boletos</em>.
+      </p>
     </div>
   );
 
@@ -637,15 +649,33 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
   const handleCrearJornada = async () => {
     if (!newJorNombre.trim()) return;
     setCreating(true);
-    const { error } = await crearBetJornada(ligaId, newJorNombre.trim(), newJorDesc.trim(), userId);
-    setCreating(false);
-    if (error) showToast(error, 'error');
-    else {
-      showToast('Jornada creada', 'success');
-      setNewJorNombre(''); setNewJorDesc('');
-      setShowCreateJornada(false);
-      refetchJornadas();
+    const { data: newJornada, error } = await crearBetJornada(ligaId, newJorNombre.trim(), newJorDesc.trim(), userId);
+    if (error) {
+      setCreating(false);
+      showToast(error, 'error');
+      return;
     }
+    // Auto-load partidos: parse jornada number from name e.g. "Jornada 3" → 3
+    if (newJornada) {
+      const match = newJorNombre.match(/\d+/);
+      if (match) {
+        const jorNum = parseInt(match[0], 10);
+        const { partidosCargados, error: autoErr } = await autoCargarPartidosYCuotas(newJornada.id, ligaId, jorNum);
+        if (autoErr) {
+          showToast(`Jornada creada pero error al cargar partidos: ${autoErr}`, 'error');
+        } else if (partidosCargados === 0) {
+          showToast(`Jornada creada. No se encontraron partidos de liga para la jornada ${jorNum}. Verifica el número.`, 'success');
+        } else {
+          showToast(`✅ Jornada creada con ${partidosCargados} partidos cargados. ¡Edita las cuotas!`, 'success');
+        }
+      } else {
+        showToast('Jornada creada (sin número detectado en el nombre, añade partidos manualmente)', 'success');
+      }
+    }
+    setCreating(false);
+    setNewJorNombre(''); setNewJorDesc('');
+    setShowCreateJornada(false);
+    refetchJornadas();
   };
 
   const handleAgregarPartido = async () => {
@@ -700,6 +730,18 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
             </button>
             {jornadaId && (
               <>
+                <button className="btn btn-secondary btn-sm" onClick={async () => {
+                  const jorn = jornadas.find(j => j.id === jornadaId);
+                  const match = jorn?.nombre?.match(/\d+/);
+                  if (!match) { showToast('No se detectó número de jornada en el nombre', 'error'); return; }
+                  const jorNum = parseInt(match[0], 10);
+                  const { partidosCargados, error: autoErr } = await autoCargarPartidosYCuotas(jornadaId, ligaId, jorNum);
+                  if (autoErr) showToast(autoErr, 'error');
+                  else if (partidosCargados === 0) showToast(`Sin partidos nuevos para Jornada ${jorNum}`, 'success');
+                  else { showToast(`🔄 ${partidosCargados} partidos cargados/actualizados`, 'success'); refetchPartidos(); }
+                }}>
+                  🔄 Recargar Partidos
+                </button>
                 <button className="btn btn-secondary btn-sm" onClick={() => setShowAddPartido(!showAddPartido)}>
                   <Plus size={14} /> Añadir Partido
                 </button>
@@ -863,7 +905,7 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
 
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
-                      placeholder={mercadoActivo === 'resultado_exacto' ? 'Ej: 2-1' : 'Opción'}
+                      placeholder="Opción"
                       value={nuevaOpcion}
                       onChange={e => setNuevaOpcion(e.target.value)}
                       style={{ width: 100, padding: '0.35rem 0.6rem', borderRadius: 7, fontSize: '0.78rem' }}
