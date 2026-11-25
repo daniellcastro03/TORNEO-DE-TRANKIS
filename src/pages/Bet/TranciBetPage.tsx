@@ -21,7 +21,7 @@ import {
 } from '../../hooks/useBet';
 import { supabase } from '../../lib/supabase';
 import type { LigaPartido } from '../../types/database';
-import { Plus, Trash2, Edit2, ChevronDown, ChevronRight, Trophy, Ticket, Eye, X, Check, AlertCircle, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronDown, ChevronRight, Ticket, Eye, X, Check, AlertCircle, TrendingUp, Calendar } from 'lucide-react';
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -44,6 +44,35 @@ function estadoBadge(estado: string) {
   return { bg: 'rgba(212,160,23,0.08)', border: 'rgba(212,160,23,0.3)', color: '#d4a017', label: '⏳ PENDIENTE' };
 }
 
+// Avatar component: shows photo if available, else initials
+function Avatar({ foto, nombre, size = 32 }: { foto?: string | null; nombre: string; size?: number }) {
+  const [imgErr, setImgErr] = useState(false);
+  if (foto && !imgErr) {
+    return (
+      <img
+        src={foto}
+        alt={nombre}
+        onError={() => setImgErr(true)}
+        style={{
+          width: size, height: size, borderRadius: '50%',
+          objectFit: 'cover', flexShrink: 0,
+          border: '2px solid rgba(57,255,20,0.3)',
+        }}
+      />
+    );
+  }
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: 'linear-gradient(135deg,#2bcc10,#39FF14)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.32 + 'px', fontWeight: 800, color: '#000', flexShrink: 0,
+    }}>
+      {getInitials(nombre)}
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────
 
 export default function TranciBetPage() {
@@ -55,6 +84,7 @@ export default function TranciBetPage() {
   const [ligas, setLigas] = useState<{ id: string; nombre: string }[]>([]);
   const [jornadaSelId, setJornadaSelId] = useState<string>('');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [showJornadaList, setShowJornadaList] = useState(false);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -94,6 +124,8 @@ export default function TranciBetPage() {
     );
   }
 
+  const jornadaSel = jornadas.find(j => j.id === jornadaSelId);
+
   return (
     <div className="page-container fade-in">
       {toast && (
@@ -125,8 +157,8 @@ export default function TranciBetPage() {
         </p>
       </div>
 
-      {/* Liga selector */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Liga + Jornada selectors */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <label style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Liga:</label>
         <select
           value={ligaId}
@@ -144,7 +176,72 @@ export default function TranciBetPage() {
           {jornadas.map(j => <option key={j.id} value={j.id}>{j.nombre}{!j.activa ? ' (cerrada)' : ''}</option>)}
           {jornadas.length === 0 && <option value="">Sin jornadas disponibles</option>}
         </select>
+        {/* Button to show jornada list panel */}
+        <button
+          onClick={() => setShowJornadaList(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.3rem',
+            padding: '0.3rem 0.6rem', borderRadius: 7, border: '1px solid var(--color-border)',
+            background: showJornadaList ? 'var(--color-bg-elevated)' : 'transparent',
+            color: showJornadaList ? 'var(--color-neon)' : 'var(--color-text-muted)',
+            cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+          }}
+        >
+          <Calendar size={13} /> Jornadas
+        </button>
       </div>
+
+      {/* ── Jornada List Panel ── */}
+      {showJornadaList && (
+        <div style={{
+          marginBottom: '1rem', background: 'var(--color-bg-elevated)',
+          border: '1px solid var(--color-border-neon)', borderRadius: 12,
+          padding: '0.85rem 1rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+            <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-neon)' }}>📅 Listado de Jornadas</span>
+            <button onClick={() => setShowJornadaList(false)} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex' }}>
+              <X size={15} />
+            </button>
+          </div>
+          {jornadas.length === 0 ? (
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>No hay jornadas creadas.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {jornadas.map(j => (
+                <div
+                  key={j.id}
+                  onClick={() => { setJornadaSelId(j.id); setShowJornadaList(false); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '0.5rem 0.75rem', borderRadius: 8, cursor: 'pointer',
+                    background: jornadaSelId === j.id ? 'rgba(57,255,20,0.1)' : 'transparent',
+                    border: jornadaSelId === j.id ? '1px solid rgba(57,255,20,0.3)' : '1px solid transparent',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: jornadaSelId === j.id ? 700 : 500, color: jornadaSelId === j.id ? 'var(--color-neon)' : 'var(--color-text)' }}>
+                      {j.nombre}
+                    </span>
+                    <span style={{
+                      fontSize: '0.62rem', padding: '1px 6px', borderRadius: 20, fontWeight: 700,
+                      background: j.activa ? 'rgba(57,255,20,0.12)' : 'rgba(255,59,59,0.1)',
+                      color: j.activa ? '#39FF14' : '#FF3B3B',
+                      border: j.activa ? '1px solid rgba(57,255,20,0.3)' : '1px solid rgba(255,59,59,0.25)',
+                    }}>
+                      {j.activa ? '🟢 Abierta' : '🔴 Cerrada'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)' }}>
+                    {new Date(j.created_at).toLocaleDateString('es-HN')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0' }}>
@@ -181,7 +278,7 @@ export default function TranciBetPage() {
       )}
 
       {tab === 'mis-apuestas' && (
-        <MisApuestasTab jugadorId={user.id} jornadaId={jornadaSelId} jornadas={jornadas} />
+        <MisApuestasTab jugadorId={user.id} jornadaId={jornadaSelId} jornadas={jornadas} showToast={showToast} />
       )}
 
       {tab === 'admin' && isAdmin && (
@@ -214,7 +311,11 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
   // Reset selecciones when jornada changes
   useEffect(() => { setSelecciones({}); }, [jornadaId]);
 
-  const toggleCuota = (cuota: BetCuota) => {
+  const toggleCuota = (cuota: BetCuota, isFinished?: boolean) => {
+    if (isFinished) {
+      showToast('⛔ No puedes apostar a un partido ya finalizado', 'error');
+      return;
+    }
     setSelecciones(prev => {
       const key = cuota.bet_partido_id + '_' + cuota.mercado;
       const existing = Object.values(prev).find(c => c.bet_partido_id === cuota.bet_partido_id && c.mercado === cuota.mercado);
@@ -238,6 +339,18 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
   const uniquePartidosCount = new Set(Object.values(selecciones).map(c => c.bet_partido_id)).size;
 
   const handleApostar = async () => {
+    if (!jornadaActiva) {
+      showToast('🔒 Esta jornada está cerrada y no acepta más apuestas', 'error');
+      return;
+    }
+    const finishedSelected = Object.values(selecciones).filter(c => {
+      const p = partidos.find(pt => pt.id === c.bet_partido_id);
+      return p?.estado === 'finalizado';
+    });
+    if (finishedSelected.length > 0) {
+      showToast('⛔ Tu combinada incluye partidos ya finalizados. Quítalos para continuar.', 'error');
+      return;
+    }
     if (uniquePartidosCount < 7) {
       showToast(`Debes seleccionar mínimo 7 partidos distintos (llevas ${uniquePartidosCount})`, 'error');
       return;
@@ -251,7 +364,7 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
     setSubmitting(false);
     if (error) showToast(error, 'error');
     else {
-      showToast('✅ ¡Boleto colocado! Buena suerte 🎲', 'success');
+      showToast('✅ ¡Boleto colocado! Ya no podrá modificarse ni eliminarse 🎲', 'success');
       setSelecciones({});
       refetch();
     }
@@ -294,7 +407,7 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
 
   return (
     <div>
-      {/* Boleto en construcción (sticky bottom) */}
+      {/* Boleto en construcción (sticky top) */}
       {totalSels > 0 && (
         <div style={{
           position: 'sticky', top: '0.5rem', zIndex: 50, marginBottom: '1rem',
@@ -341,7 +454,7 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
       {/* Partidos y cuotas */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {partidos.map(p => (
-          <PartidoCuotasCard key={p.id} partido={p} isSelected={isSelected} toggleCuota={toggleCuota} />
+          <PartidoCuotasCard key={p.id} partido={p} isSelected={isSelected} toggleCuota={(c) => toggleCuota(c, p.estado === 'finalizado')} />
         ))}
       </div>
 
@@ -394,9 +507,7 @@ function PartidoCuotasCard({ partido, isSelected, toggleCuota }: {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             {/* Local */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flex: 1, minWidth: 0 }}>
-              <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg,#2bcc10,#39FF14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 800, color: '#000', flexShrink: 0 }}>
-                {getInitials(partido.jugador_local_nombre)}
-              </div>
+              <Avatar foto={partido.jugador_local_foto} nombre={partido.jugador_local_nombre} size={28} />
               <span style={{ fontWeight: 600, fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{partido.jugador_local_nombre}</span>
             </div>
             {/* Score or VS */}
@@ -406,15 +517,23 @@ function PartidoCuotasCard({ partido, isSelected, toggleCuota }: {
             {/* Visitante */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
               <span style={{ fontWeight: 600, fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{partido.jugador_visitante_nombre}</span>
-              <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
-                {getInitials(partido.jugador_visitante_nombre)}
-              </div>
+              <Avatar foto={partido.jugador_visitante_foto} nombre={partido.jugador_visitante_nombre} size={28} />
             </div>
           </div>
-          <div style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
-            {partido.competicion === 'primera' ? '🥇 1ª División' : partido.competicion === 'segunda' ? '🥈 2ª División' : '🏆 FA Cup'}
-            {partido.jornada_liga ? ` · J${partido.jornada_liga}` : ''}
-            {isFinished && <span style={{ color: '#39FF14', marginLeft: '0.4rem' }}>✅ Finalizado</span>}
+          <div style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <span>
+              {partido.competicion === 'primera' ? '🥇 1ª División' : partido.competicion === 'segunda' ? '🥈 2ª División' : '🏆 FA Cup'}
+              {partido.jornada_liga ? ` · J${partido.jornada_liga}` : ''}
+            </span>
+            {isFinished && (
+              <span style={{
+                color: '#FF3B3B', background: 'rgba(255,59,59,0.1)',
+                border: '1px solid rgba(255,59,59,0.25)', padding: '1px 6px',
+                borderRadius: 12, fontWeight: 700, fontSize: '0.58rem',
+              }}>
+                🔒 FINALIZADO · No disponible para apostar
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: '0.5rem' }}>
@@ -425,7 +544,7 @@ function PartidoCuotasCard({ partido, isSelected, toggleCuota }: {
 
       {/* Cuotas */}
       {expanded && (
-        <div style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+        <div style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', opacity: isFinished ? 0.55 : 1 }}>
           {[...cuotasByMercado.entries()].map(([mercado, cuotas]) => (
             <div key={mercado}>
               <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
@@ -441,15 +560,18 @@ function PartidoCuotasCard({ partido, isSelected, toggleCuota }: {
                   return (
                     <button
                       key={c.id}
-                      onClick={() => !isFinished && toggleCuota(c)}
+                      onClick={() => toggleCuota(c)}
                       disabled={isFinished}
+                      title={isFinished ? 'Partido finalizado: no disponible para apostar' : undefined}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center',
-                        padding: '0.4rem 0.75rem', borderRadius: 8, border: 'none', cursor: isFinished ? 'default' : 'pointer',
+                        padding: '0.4rem 0.75rem', borderRadius: 8, border: 'none',
+                        cursor: isFinished ? 'not-allowed' : 'pointer',
                         background: sel ? 'rgba(57,255,20,0.15)' : 'var(--color-bg-elevated)',
                         outline: sel ? '1px solid var(--color-neon)' : '1px solid var(--color-border)',
                         transition: 'all 0.15s',
                         minWidth: 60,
+                        opacity: isFinished ? 0.55 : 1,
                       }}
                     >
                       <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textAlign: 'center', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -472,7 +594,10 @@ function PartidoCuotasCard({ partido, isSelected, toggleCuota }: {
 
 // ── Tab: Mis Apuestas ───────────────────────────────────────
 
-function MisApuestasTab({ jugadorId, jornadaId, jornadas }: { jugadorId: string; jornadaId: string; jornadas: any[] }) {
+function MisApuestasTab({ jugadorId, jornadaId, jornadas }: {
+  jugadorId: string; jornadaId: string; jornadas: any[];
+  showToast?: (msg: string, type: 'success' | 'error') => void;
+}) {
   const { boletos, loading } = useMisBoletos(jugadorId);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [scope, setScope] = useState<'torneo' | 'jornada'>('torneo');
@@ -488,6 +613,9 @@ function MisApuestasTab({ jugadorId, jornadaId, jornadas }: { jugadorId: string;
     perdidos: jornadaBoletos.filter(b => b.estado === 'perdido').length,
     pendientes: jornadaBoletos.filter(b => b.estado === 'pendiente').length,
   };
+
+  // Map jornada id → nombre for displaying in coupon
+  const jornadaMap = new Map(jornadas.map(j => [j.id, j.nombre]));
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>;
 
@@ -514,87 +642,308 @@ function MisApuestasTab({ jugadorId, jornadaId, jornadas }: { jugadorId: string;
         </div>
       ) : (
         <>
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
-        {[
-          { v: stats.total, l: 'Boletos', c: 'var(--color-text)' },
-          { v: stats.ganados, l: 'Ganados', c: '#39FF14' },
-          { v: stats.perdidos, l: 'Perdidos', c: '#FF3B3B' },
-          { v: stats.pendientes, l: 'Pendientes', c: '#d4a017' },
-        ].map(s => (
-          <div key={s.l} className="card" style={{ padding: '0.65rem', textAlign: 'center' }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 800, color: s.c }}>{s.v}</div>
-            <div style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{s.l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Boletos list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-        {jornadaBoletos.map(b => {
-          const badge = estadoBadge(b.estado);
-          const isExpanded = expanded === b.id;
-          const sels = (b as any).bet_selecciones || [];
-
-          return (
-            <div key={b.id} className="card" style={{ padding: 0, overflow: 'hidden', border: `1px solid ${badge.border}` }}>
-              {/* Header */}
-              <div
-                style={{ padding: '0.75rem 1rem', cursor: 'pointer', background: badge.bg, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                onClick={() => setExpanded(isExpanded ? null : b.id)}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: badge.color }}>{badge.label}</span>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>{sels.length} picks</span>
-                  </div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginTop: '0.15rem' }}>
-                    Cuota: <strong style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}>{Number(b.cuota_total).toFixed(2)}</strong>
-                    {' '}· Ganancia: <strong style={{ color: b.estado === 'ganado' ? '#39FF14' : 'var(--color-text-muted)' }}>L. {Number(b.ganancia_potencial).toFixed(2)}</strong>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)' }}>
-                    {new Date(b.created_at).toLocaleDateString('es-HN')}
-                  </span>
-                  {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                </div>
+          {/* Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+            {[
+              { v: stats.total, l: 'Boletos', c: 'var(--color-text)' },
+              { v: stats.ganados, l: 'Ganados', c: '#39FF14' },
+              { v: stats.perdidos, l: 'Perdidos', c: '#FF3B3B' },
+              { v: stats.pendientes, l: 'Pendientes', c: '#d4a017' },
+            ].map(s => (
+              <div key={s.l} className="card" style={{ padding: '0.65rem', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 800, color: s.c }}>{s.v}</div>
+                <div style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{s.l}</div>
               </div>
+            ))}
+          </div>
 
-              {/* Selecciones */}
-              {isExpanded && sels.length > 0 && (
-                <div style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {sels.map((s: any) => {
-                    const c = s.bet_cuotas;
-                    const sBadge = estadoBadge(s.estado);
-                    return (
-                      <div key={s.id} style={{
-                        display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        padding: '0.4rem 0.6rem', borderRadius: 7,
-                        background: sBadge.bg, border: `1px solid ${sBadge.border}`,
-                      }}>
-                        <span style={{ color: sBadge.color, fontSize: '0.75rem', flexShrink: 0 }}>
-                          {s.estado === 'ganada' ? '✅' : s.estado === 'perdida' ? '❌' : '⏳'}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text)' }}>
-                            {MERCADO_LABELS[c?.mercado as BetMercado] || c?.mercado}: <span style={{ color: 'var(--color-neon)' }}>{c?.opcion}</span>
-                          </div>
-                        </div>
-                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '0.88rem', color: 'var(--color-text)', flexShrink: 0 }}>
-                          {Number(c?.cuota || 0).toFixed(2)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+          {/* Boletos list – coupon style */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+            {jornadaBoletos.map(b => {
+              const badge = estadoBadge(b.estado);
+              const isExpanded = expanded === b.id;
+              const sels = (b as any).bet_selecciones || [];
+              const jornadaNombre = jornadaMap.get(b.jornada_id) || 'Jornada';
+
+              return (
+                <BoletoCard
+                  key={b.id}
+                  boleto={b}
+                  badge={badge}
+                  sels={sels}
+                  jornadaNombre={jornadaNombre}
+                  isExpanded={isExpanded}
+                  onToggle={() => setExpanded(isExpanded ? null : b.id)}
+                />
+              );
+            })}
+          </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Boleto Card – Coupon Style ──────────────────────────────
+
+function BoletoCard({ boleto, badge, sels, jornadaNombre, isExpanded, onToggle }: {
+  boleto: any;
+  badge: { bg: string; border: string; color: string; label: string };
+  sels: any[];
+  jornadaNombre: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const fecha = new Date(boleto.created_at).toLocaleDateString('es-HN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const hora = new Date(boleto.created_at).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div style={{
+      borderRadius: 14,
+      overflow: 'hidden',
+      border: `1.5px solid ${badge.border}`,
+      boxShadow: `0 2px 16px ${badge.border}44`,
+      background: 'var(--color-bg-card)',
+    }}>
+      {/* ── Coupon Header ── */}
+      <div style={{
+        background: badge.bg,
+        borderBottom: `1px dashed ${badge.border}`,
+        padding: '0.85rem 1rem 0.7rem',
+      }}>
+        {/* Top row: logo area + status */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
+              border: `1.5px solid ${badge.border}`,
+              borderRadius: 10, padding: '6px 10px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+            }}>
+              <span style={{ fontSize: '1.1rem' }}>🎰</span>
+              <span style={{ fontSize: '0.5rem', fontWeight: 800, color: 'var(--color-neon)', letterSpacing: '0.08em', marginTop: 1 }}>TRANKIS</span>
+              <span style={{ fontSize: '0.42rem', fontWeight: 700, color: 'var(--color-neon)', opacity: 0.7, letterSpacing: '0.08em' }}>BET</span>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '0.9rem', color: badge.color }}>{badge.label}</div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginTop: '0.1rem' }}>
+                📅 {jornadaNombre} · {fecha} {hora}
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
+                🎲 {sels.length} picks · Combinada múltiple
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
+            <button
+              onClick={onToggle}
+              style={{
+                background: 'transparent', border: `1px solid ${badge.border}`,
+                borderRadius: 7, padding: '3px 7px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '0.25rem',
+                color: badge.color, fontSize: '0.65rem', fontWeight: 600,
+              }}
+            >
+              {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+              {isExpanded ? 'Ocultar' : 'Ver picks'}
+            </button>
+          </div>
+        </div>
+
+        {/* Summary row */}
+        <div style={{
+          marginTop: '0.65rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap',
+        }}>
+          <div style={{
+            flex: 1, minWidth: 100, background: 'rgba(0,0,0,0.2)', borderRadius: 8,
+            padding: '0.4rem 0.6rem', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '0.58rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Monto</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 800, color: 'var(--color-text)' }}>L. 100.00</div>
+          </div>
+          <div style={{
+            flex: 1, minWidth: 100, background: 'rgba(0,0,0,0.2)', borderRadius: 8,
+            padding: '0.4rem 0.6rem', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '0.58rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Cuota total</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 800, color: 'var(--color-neon)' }}>{Number(boleto.cuota_total).toFixed(2)}</div>
+          </div>
+          <div style={{
+            flex: 1, minWidth: 100, background: 'rgba(0,0,0,0.2)', borderRadius: 8,
+            padding: '0.4rem 0.6rem', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '0.58rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              {boleto.estado === 'ganado' ? '✅ Ganancia' : 'Ganancia pot.'}
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 800, color: boleto.estado === 'ganado' ? '#39FF14' : '#d4a017' }}>
+              L. {Number(boleto.ganancia_potencial).toFixed(2)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Coupon Picks (expanded) ── */}
+      {isExpanded && sels.length > 0 && (
+        <div style={{ padding: '0' }}>
+          <div style={{ padding: '0.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {sels.map((s: any) => (
+              <CouponPickRow key={s.id} seleccion={s} />
+            ))}
+          </div>
+
+          {/* Footer barcode-style */}
+          <div style={{
+            padding: '0.5rem 1rem 0.65rem',
+            borderTop: `1px dashed ${badge.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: badge.bg,
+          }}>
+            <span style={{ fontSize: '0.58rem', color: 'var(--color-text-muted)', fontFamily: 'monospace', letterSpacing: '0.08em' }}>
+              ID: {boleto.id.slice(0, 8).toUpperCase()}
+            </span>
+            <span style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)' }}>
+              🔒 Boleto definitivo · Sin valor real
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Coupon Pick Row (Hondubet style with player profile photo) ──
+
+function CouponPickRow({ seleccion }: { seleccion: any }) {
+  const c = seleccion.bet_cuotas;
+  const sBadge = estadoBadge(seleccion.estado);
+  const lp = c?.bet_partidos?.liga_partidos;
+
+  const localNombre: string = lp?.jugador_local?.nombre || 'Local';
+  const localFoto: string | null = lp?.jugador_local?.foto_url || null;
+  const visitanteNombre: string = lp?.jugador_visitante?.nombre || 'Visitante';
+  const visitanteFoto: string | null = lp?.jugador_visitante?.foto_url || null;
+  const isMatchFinished = lp?.estado === 'finalizado';
+
+  const mercado: BetMercado | undefined = c?.mercado;
+  const opcion: string = c?.opcion || '';
+  const mercadoLabel = MERCADO_LABELS[mercado as BetMercado] || c?.mercado || '';
+
+  // Determine whose profile photo & name to highlight as the bet target
+  let targetFoto: string | null = null;
+  let targetNombre = opcion;
+  let showBothAvatars = false;
+
+  if (mercado === '1x2') {
+    if (opcion === '1') {
+      targetFoto = localFoto;
+      targetNombre = `${localNombre} (1)`;
+    } else if (opcion === '2') {
+      targetFoto = visitanteFoto;
+      targetNombre = `${visitanteNombre} (2)`;
+    } else {
+      targetNombre = 'Empate (X)';
+    }
+  } else if (mercado === 'goles_local') {
+    targetFoto = localFoto;
+    targetNombre = `${localNombre}: ${opcion} goles`;
+  } else if (mercado === 'goles_visitante') {
+    targetFoto = visitanteFoto;
+    targetNombre = `${visitanteNombre}: ${opcion} goles`;
+  } else if (mercado === 'total_goles') {
+    showBothAvatars = true;
+    targetNombre = `Total goles: ${opcion}`;
+  }
+
+  return (
+    <div style={{
+      background: 'var(--color-bg-elevated)',
+      border: `1px solid ${sBadge.border}`,
+      borderRadius: 10,
+      padding: '0.6rem 0.75rem',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.35rem',
+    }}>
+      {/* Row 1: Match players with avatars + status */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.72rem' }}>⚽</span>
+          <Avatar foto={localFoto} nombre={localNombre} size={18} />
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {localNombre}
+          </span>
+          <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+            {isMatchFinished && lp?.goles_local !== null ? `${lp.goles_local} - ${lp.goles_visitante}` : 'vs'}
+          </span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {visitanteNombre}
+          </span>
+          <Avatar foto={visitanteFoto} nombre={visitanteNombre} size={18} />
+        </div>
+        <span style={{
+          fontSize: '0.68rem', fontWeight: 700, color: sBadge.color,
+          background: sBadge.bg, border: `1px solid ${sBadge.border}`,
+          padding: '1px 6px', borderRadius: 12, flexShrink: 0,
+        }}>
+          {seleccion.estado === 'ganada' ? '✅' : seleccion.estado === 'perdida' ? '❌' : '⏳'}
+        </span>
+      </div>
+
+      {/* Row 2: Competition / Jornada + Market pill */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+        {lp && (
+          <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)' }}>
+            {lp.competicion === 'primera' ? '1ª Div' : lp.competicion === 'segunda' ? '2ª Div' : 'FA Cup'}
+            {lp.jornada ? ` · J${lp.jornada}` : ''}
+          </span>
+        )}
+        <span style={{
+          fontSize: '0.62rem', fontWeight: 700, color: 'var(--color-text-muted)',
+          border: '1px solid var(--color-border)', borderRadius: 4,
+          padding: '0 5px', textTransform: 'uppercase', letterSpacing: '0.03em',
+        }}>
+          {mercadoLabel}
+        </span>
+      </div>
+
+      {/* Row 3: Picked player's profile photo + selection + odd */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+          {showBothAvatars ? (
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Avatar foto={localFoto} nombre={localNombre} size={22} />
+              <div style={{ marginLeft: -6 }}>
+                <Avatar foto={visitanteFoto} nombre={visitanteNombre} size={22} />
+              </div>
+            </div>
+          ) : targetFoto !== null || (mercado === '1x2' && opcion !== 'X') || mercado === 'goles_local' || mercado === 'goles_visitante' ? (
+            <Avatar
+              foto={targetFoto}
+              nombre={opcion === '1' || mercado === 'goles_local' ? localNombre : opcion === '2' || mercado === 'goles_visitante' ? visitanteNombre : opcion}
+              size={24}
+            />
+          ) : (
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.08)', border: '1px solid var(--color-border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '0.68rem', fontWeight: 800, color: 'var(--color-text-muted)', flexShrink: 0,
+            }}>
+              X
+            </div>
+          )}
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-neon)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {targetNombre}
+          </span>
+        </div>
+
+        <span style={{
+          fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '0.95rem',
+          color: sBadge.color, flexShrink: 0,
+        }}>
+          {Number(c?.cuota || 0).toFixed(2)}
+        </span>
+      </div>
     </div>
   );
 }
@@ -818,15 +1167,19 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
             <div key={p.id} className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '0.75rem' }}>
               {/* Header */}
               <div style={{ padding: '0.75rem 1rem', background: 'var(--color-bg-elevated)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                    {p.jugador_local_nombre} vs {p.jugador_visitante_nombre}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Avatar foto={p.jugador_local_foto} nombre={p.jugador_local_nombre} size={24} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                      {p.jugador_local_nombre} vs {p.jugador_visitante_nombre}
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
+                      {p.competicion === 'primera' ? '1ª División' : '2ª División'}
+                      {p.jornada_liga ? ` · J${p.jornada_liga}` : ''}
+                      {' '}· {p.cuotas.length} cuotas cargadas
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
-                    {p.competicion === 'primera' ? '1ª División' : '2ª División'}
-                    {p.jornada_liga ? ` · J${p.jornada_liga}` : ''}
-                    {' '}· {p.cuotas.length} cuotas cargadas
-                  </div>
+                  <Avatar foto={p.jugador_visitante_foto} nombre={p.jugador_visitante_nombre} size={24} />
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <button
@@ -950,9 +1303,7 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
               {topList.map(([_, p], i) => (
                 <div key={_} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: i < topList.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                   <span style={{ width: 22, fontSize: '0.75rem', fontWeight: 800, color: i < 3 ? '#FFD700' : 'var(--color-text-muted)' }}>#{i + 1}</span>
-                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg,#2bcc10,#39FF14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 800, color: '#000', flexShrink: 0 }}>
-                    {getInitials(p.nombre)}
-                  </div>
+                  <Avatar foto={p.foto} nombre={p.nombre} size={26} />
                   <span style={{ flex: 1, fontSize: '0.78rem', fontWeight: 600 }}>{p.nombre}</span>
                   <span style={{ fontSize: '0.72rem', color: '#39FF14', fontWeight: 700 }}>{p.ganados} ganadas</span>
                   <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>L. {p.ganancia.toFixed(0)}</span>
@@ -975,9 +1326,7 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
                     onClick={() => setExpandedBoletoId(isExp ? null : b.id)}
                     style={{ padding: '0.75rem 1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                   >
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#2bcc10,#39FF14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 800, color: '#000', flexShrink: 0 }}>
-                      {getInitials((b as any).jugador_nombre || '?')}
-                    </div>
+                    <Avatar foto={(b as any).jugador_foto} nombre={(b as any).jugador_nombre || '?'} size={28} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{(b as any).jugador_nombre}</div>
                       <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
@@ -989,24 +1338,10 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
                   </div>
 
                   {isExp && sels.length > 0 && (
-                    <div style={{ padding: '0.6rem 1rem 0.75rem', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      {sels.map((s: any) => {
-                        const c = s.bet_cuotas;
-                        const sBadge = estadoBadge(s.estado);
-                        return (
-                          <div key={s.id} style={{
-                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                            padding: '0.35rem 0.55rem', borderRadius: 6,
-                            background: sBadge.bg, border: `1px solid ${sBadge.border}`, fontSize: '0.7rem',
-                          }}>
-                            <span style={{ color: sBadge.color }}>{s.estado === 'ganada' ? '✅' : s.estado === 'perdida' ? '❌' : '⏳'}</span>
-                            <span style={{ flex: 1 }}>
-                              {MERCADO_LABELS[c?.mercado as BetMercado] || c?.mercado}: <strong style={{ color: 'var(--color-neon)' }}>{c?.opcion}</strong>
-                            </span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{Number(c?.cuota || 0).toFixed(2)}</span>
-                          </div>
-                        );
-                      })}
+                    <div style={{ padding: '0.6rem 0.85rem 0.75rem', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      {sels.map((s: any) => (
+                        <CouponPickRow key={s.id} seleccion={s} />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1018,4 +1353,3 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
     </div>
   );
 }
-

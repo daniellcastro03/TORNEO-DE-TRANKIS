@@ -145,6 +145,21 @@ export function useBetJornadaDetalle(jornadaId: string | undefined) {
 
 // ── Hook: boletos del jugador actual ───────────────────────
 
+const SELECCIONES_SELECT = `
+  id, boleto_id, bet_cuota_id, estado,
+  bet_cuotas:bet_cuota_id (
+    id, bet_partido_id, mercado, opcion, cuota,
+    bet_partidos:bet_partido_id (
+      id,
+      liga_partidos:liga_partido_id (
+        id, estado, goles_local, goles_visitante, competicion, jornada,
+        jugador_local:jugador_local_id (id, nombre, foto_url),
+        jugador_visitante:jugador_visitante_id (id, nombre, foto_url)
+      )
+    )
+  )
+`;
+
 export function useMisBoletos(jugadorId: string | undefined) {
   const [boletos, setBoletos] = useState<BetBoleto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,10 +171,7 @@ export function useMisBoletos(jugadorId: string | undefined) {
       .from('bet_boletos')
       .select(`
         *,
-        bet_selecciones (
-          id, boleto_id, bet_cuota_id, estado,
-          bet_cuotas:bet_cuota_id (id, bet_partido_id, mercado, opcion, cuota)
-        )
+        bet_selecciones (${SELECCIONES_SELECT})
       `)
       .eq('jugador_id', jugadorId)
       .order('created_at', { ascending: false });
@@ -185,10 +197,7 @@ export function useAllBoletos(jornadaId: string | undefined) {
       .select(`
         *,
         jugadores:jugador_id (nombre, foto_url),
-        bet_selecciones (
-          id, boleto_id, bet_cuota_id, estado,
-          bet_cuotas:bet_cuota_id (id, bet_partido_id, mercado, opcion, cuota)
-        )
+        bet_selecciones (${SELECCIONES_SELECT})
       `)
       .eq('jornada_id', jornadaId)
       .order('created_at', { ascending: false });
@@ -232,10 +241,7 @@ export function useBoletosPorLiga(ligaId: string | undefined) {
       .select(`
         *,
         jugadores:jugador_id (nombre, foto_url),
-        bet_selecciones (
-          id, boleto_id, bet_cuota_id, estado,
-          bet_cuotas:bet_cuota_id (id, bet_partido_id, mercado, opcion, cuota)
-        )
+        bet_selecciones (${SELECCIONES_SELECT})
       `)
       .in('jornada_id', jornadas.map(j => j.id))
       .order('created_at', { ascending: false });
@@ -362,6 +368,15 @@ export async function colocarBoleto(
 ): Promise<{ data: BetBoleto | null; error: string | null }> {
   if (selecciones.length < 7) return { data: null, error: 'Debes seleccionar mínimo 7 partidos' };
 
+  // Check jornada is active
+  const { data: jorData, error: jorErr } = await supabase
+    .from('bet_jornadas')
+    .select('id, activa')
+    .eq('id', jornadaId)
+    .single();
+  if (jorErr || !jorData) return { data: null, error: 'Jornada no encontrada' };
+  if (!(jorData as any).activa) return { data: null, error: 'Esta jornada está cerrada y no acepta más apuestas' };
+
   // Check 1 boleto per player per jornada
   const { count } = await supabase
     .from('bet_boletos')
@@ -370,7 +385,7 @@ export async function colocarBoleto(
     .eq('jugador_id', jugadorId);
   if ((count ?? 0) > 0) return { data: null, error: '¡Ya tienes un boleto en esta jornada! Solo se permite 1 por jornada.' };
 
-  // Check that none of the selected cuotas belong to finished matches
+  // Check that none of the selected cuotas belong to finished matches & at least 7 distinct matches
   const cuotaIds = selecciones.map(s => s.bet_cuota_id);
   const { data: cuotasData, error: cuotasErr } = await supabase
     .from('bet_cuotas')
@@ -379,6 +394,10 @@ export async function colocarBoleto(
   if (cuotasErr) return { data: null, error: cuotasErr.message };
 
   const betPartidoIds = [...new Set((cuotasData || []).map((c: any) => c.bet_partido_id))];
+  if (betPartidoIds.length < 7) {
+    return { data: null, error: `Debes seleccionar mínimo 7 partidos distintos (llevas ${betPartidoIds.length})` };
+  }
+
   if (betPartidoIds.length > 0) {
     const { data: bpList, error: bpErr } = await supabase
       .from('bet_partidos')
