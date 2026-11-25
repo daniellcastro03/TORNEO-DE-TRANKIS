@@ -4,12 +4,16 @@
 -- ============================================================
 
 -- 1. Agregar UNIQUE constraint faltante en bet_partidos
---    (necesario para el upsert onConflict en auto-carga de partidos)
 ALTER TABLE public.bet_partidos
-  ADD CONSTRAINT IF NOT EXISTS bet_partidos_jornada_partido_unique
+  DROP CONSTRAINT IF EXISTS bet_partidos_jornada_partido_unique;
+
+ALTER TABLE public.bet_partidos
+  ADD CONSTRAINT bet_partidos_jornada_partido_unique
   UNIQUE (jornada_id, liga_partido_id);
 
--- 2. Actualizar CHECK de mercado en bet_cuotas (quitar resultado_exacto)
+-- 2. Eliminar cuotas viejas de resultado_exacto (si existieran) y actualizar CHECK de mercado
+DELETE FROM public.bet_cuotas WHERE mercado = 'resultado_exacto';
+
 ALTER TABLE public.bet_cuotas
   DROP CONSTRAINT IF EXISTS bet_cuotas_mercado_check;
 
