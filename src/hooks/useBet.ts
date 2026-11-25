@@ -305,17 +305,27 @@ export async function autoCargarPartidosYCuotas(
   if (lpErr) return { error: lpErr.message, partidosCargados: 0 };
   if (!ligaPartidos || ligaPartidos.length === 0) return { error: null, partidosCargados: 0 };
 
-  // 2. Insert bet_partidos (skip already existing via upsert)
-  const inserts = ligaPartidos.map((lp: any) => ({ jornada_id: jornadaId, liga_partido_id: lp.id }));
+  // 2. Check existing bet_partidos for this jornada to avoid relying on DB ON CONFLICT constraint
+  const { data: existingBp, error: exErr } = await supabase
+    .from('bet_partidos')
+    .select('liga_partido_id')
+    .eq('jornada_id', jornadaId);
+  if (exErr) return { error: exErr.message, partidosCargados: 0 };
+
+  const existingIds = new Set((existingBp || []).map((b: any) => b.liga_partido_id));
+  const nuevos = ligaPartidos.filter((lp: any) => !existingIds.has(lp.id));
+  if (nuevos.length === 0) return { error: null, partidosCargados: 0 };
+
+  const inserts = nuevos.map((lp: any) => ({ jornada_id: jornadaId, liga_partido_id: lp.id }));
   const { data: bpInserted, error: bpErr } = await supabase
     .from('bet_partidos')
-    .upsert(inserts, { onConflict: 'jornada_id,liga_partido_id', ignoreDuplicates: true })
+    .insert(inserts)
     .select('id, liga_partido_id');
   if (bpErr) return { error: bpErr.message, partidosCargados: 0 };
 
   const bpList: { id: string; liga_partido_id: string }[] = (bpInserted || []) as any[];
 
-  // 3. For each inserted bet_partido, insert default cuotas
+  // 3. For each newly inserted bet_partido, insert default cuotas
   if (bpList.length > 0) {
     const defaultCuotas: any[] = [];
     for (const bp of bpList) {
@@ -337,7 +347,8 @@ export async function autoCargarPartidosYCuotas(
         { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+4.5', cuota: 1.80 },
       );
     }
-    await supabase.from('bet_cuotas').upsert(defaultCuotas, { onConflict: 'bet_partido_id,mercado,opcion', ignoreDuplicates: true });
+    const { error: cErr } = await supabase.from('bet_cuotas').insert(defaultCuotas);
+    if (cErr) return { error: cErr.message, partidosCargados: bpList.length };
   }
 
   return { error: null, partidosCargados: bpList.length };

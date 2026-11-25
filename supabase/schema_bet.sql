@@ -19,15 +19,16 @@ CREATE TABLE IF NOT EXISTS public.bet_partidos (
   id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   jornada_id    UUID         NOT NULL REFERENCES public.bet_jornadas(id) ON DELETE CASCADE,
   liga_partido_id UUID       NOT NULL REFERENCES public.liga_partidos(id) ON DELETE CASCADE,
-  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  UNIQUE (jornada_id, liga_partido_id)
 );
 
 -- ── Cuotas por partido y tipo de mercado ───────────────────
--- Tipos de mercado: '1x2', 'resultado_exacto', 'goles_local', 'goles_visitante', 'total_goles'
+-- Tipos de mercado: '1x2', 'goles_local', 'goles_visitante', 'total_goles'
 CREATE TABLE IF NOT EXISTS public.bet_cuotas (
   id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   bet_partido_id UUID        NOT NULL REFERENCES public.bet_partidos(id) ON DELETE CASCADE,
-  mercado       TEXT         NOT NULL CHECK (mercado IN ('1x2','resultado_exacto','goles_local','goles_visitante','total_goles')),
+  mercado       TEXT         NOT NULL CHECK (mercado IN ('1x2','goles_local','goles_visitante','total_goles')),
   opcion        TEXT         NOT NULL,  -- '1'/'X'/'2' para 1x2, '2-1' para exacto, '+1.5'/'+2.5' para goles, etc.
   cuota         NUMERIC(6,2) NOT NULL DEFAULT 1.50,
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
