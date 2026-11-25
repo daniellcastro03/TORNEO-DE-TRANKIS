@@ -11,6 +11,7 @@ import {
   Settings,
   Crown,
   Medal,
+  Ticket,
 } from 'lucide-react';
 import './Layout.css';
 
@@ -133,6 +134,15 @@ export default function MainLayout() {
         >
           <Medal size={22} className="nav-icon" style={{ color: '#3b82f6' }} />
           <span>Liga</span>
+        </NavLink>
+
+        <NavLink
+          to="/trankis-bet"
+          className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
+          id="nav-trankis-bet"
+        >
+          <Ticket size={22} className="nav-icon" style={{ color: '#f59e0b' }} />
+          <span>TRANKIS BET</span>
         </NavLink>
 
         {user && (

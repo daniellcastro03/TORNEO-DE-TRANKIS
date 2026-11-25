@@ -425,49 +425,53 @@ export async function generarFACup(
 ): Promise<{ error: string | null }> {
   try {
     // Delete existing FA Cup matches
-    await supabase
-      .from('liga_partidos')
-      .delete()
-      .eq('liga_id', ligaId)
-      .eq('competicion', 'fa_cup');
+    await supabase.from('liga_partidos').delete().eq('liga_id', ligaId).eq('competicion', 'fa_cup');
 
-    // Get all active players from both divisions
     const activos = jugadores.filter(j => j.activo).map(j => j.jugador_id);
-
-    if (activos.length < 2) return { error: 'Se necesitan al menos 2 jugadores activos' };
+    if (activos.length < 6) return { error: 'Se necesitan al menos 6 jugadores activos para la FA Cup' };
 
     // Shuffle randomly
     const shuffled = [...activos].sort(() => Math.random() - 0.5);
 
-    // Determine the right phase based on number of players
-    let fase: FaseLiga;
-    if (shuffled.length <= 2) fase = 'final';
-    else if (shuffled.length <= 4) fase = 'semifinal';
-    else if (shuffled.length <= 8) fase = 'cuartos';
-    else if (shuffled.length <= 16) fase = 'octavos';
-    else if (shuffled.length <= 32) fase = 'ronda_16';
-    else fase = 'ronda_32';
-
-    // If not a power of 2, some get byes (we create matches for what we have)
+    // Create up to 12 groups of 3 (triangular groups)
+    const numGroups = Math.min(12, Math.floor(shuffled.length / 3));
     const matches: any[] = [];
-    for (let i = 0; i < shuffled.length - 1; i += 2) {
+
+    for (let g = 0; g < numGroups; g++) {
+      const p1 = shuffled[g * 3];
+      const p2 = shuffled[g * 3 + 1];
+      const p3 = shuffled[g * 3 + 2];
+      if (!p1 || !p2 || !p3) break;
+
+      // 3 round-robin matches within the triangular group
+      // Store group number in jornada field
       matches.push({
         liga_id: ligaId,
         competicion: 'fa_cup' as CompeticionLiga,
-        fase,
-        jornada: null,
-        jugador_local_id: shuffled[i],
-        jugador_visitante_id: shuffled[i + 1],
-        goles_local: null,
-        goles_visitante: null,
-        estado: 'pendiente',
+        fase: 'liga' as FaseLiga,
+        jornada: g + 1,
+        jugador_local_id: p1,
+        jugador_visitante_id: p2,
+        goles_local: null, goles_visitante: null, estado: 'pendiente',
       });
-    }
-
-    // Handle byes (odd number) — last player gets a bye, we'll handle in next round
-    if (shuffled.length % 2 !== 0) {
-      // The last player gets a bye; they auto-advance in the next round
-      // We store this as metadata in the jornada field (player ID hash)
+      matches.push({
+        liga_id: ligaId,
+        competicion: 'fa_cup' as CompeticionLiga,
+        fase: 'liga' as FaseLiga,
+        jornada: g + 1,
+        jugador_local_id: p2,
+        jugador_visitante_id: p3,
+        goles_local: null, goles_visitante: null, estado: 'pendiente',
+      });
+      matches.push({
+        liga_id: ligaId,
+        competicion: 'fa_cup' as CompeticionLiga,
+        fase: 'liga' as FaseLiga,
+        jornada: g + 1,
+        jugador_local_id: p1,
+        jugador_visitante_id: p3,
+        goles_local: null, goles_visitante: null, estado: 'pendiente',
+      });
     }
 
     if (matches.length > 0) {
@@ -489,7 +493,79 @@ export async function avanzarFaseFACup(
     const faCupPartidos = partidos.filter(p => p.competicion === 'fa_cup');
     if (faCupPartidos.length === 0) return { error: 'No hay partidos de FA Cup' };
 
-    // Get the current phase (most recent one with matches)
+    // Check if we're in group stage (fase='liga', competicion='fa_cup')
+    const gruppoPartidos = faCupPartidos.filter(p => p.fase === 'liga');
+    if (gruppoPartidos.length > 0) {
+      const pendientesGrupo = gruppoPartidos.filter(p => p.estado === 'pendiente');
+      if (pendientesGrupo.length > 0) return { error: `Aún hay ${pendientesGrupo.length} partidos de grupos pendientes` };
+
+      // Calculate group standings
+      // Group number is stored in jornada field
+      const grupos = new Map<number, { jugador_id: string; pts: number; gf: number; gc: number }[]>();
+
+      // Initialize groups
+      for (const p of gruppoPartidos) {
+        const g = p.jornada!;
+        if (!grupos.has(g)) grupos.set(g, []);
+      }
+
+      // For each group, collect unique players
+      for (const [g] of grupos) {
+        const gPartidos = gruppoPartidos.filter(p => p.jornada === g);
+        const playerSet = new Set<string>();
+        for (const p of gPartidos) { playerSet.add(p.jugador_local_id); playerSet.add(p.jugador_visitante_id); }
+        grupos.set(g, [...playerSet].map(pid => ({ jugador_id: pid, pts: 0, gf: 0, gc: 0 })));
+      }
+
+      // Calculate stats
+      for (const p of gruppoPartidos) {
+        if (p.goles_local === null || p.goles_visitante === null) continue;
+        const g = p.jornada!;
+        const rows = grupos.get(g)!;
+        const local = rows.find(r => r.jugador_id === p.jugador_local_id);
+        const visit = rows.find(r => r.jugador_id === p.jugador_visitante_id);
+        if (local) { local.gf += p.goles_local; local.gc += p.goles_visitante; local.pts += p.goles_local > p.goles_visitante ? 3 : p.goles_local === p.goles_visitante ? 1 : 0; }
+        if (visit) { visit.gf += p.goles_visitante; visit.gc += p.goles_local; visit.pts += p.goles_visitante > p.goles_local ? 3 : p.goles_local === p.goles_visitante ? 1 : 0; }
+      }
+
+      // Get winners and runners-up
+      const winners: string[] = [];
+      const runnersUp: { jugador_id: string; pts: number; dg: number }[] = [];
+
+      for (const [, rows] of grupos) {
+        rows.sort((a, b) => (b.pts - a.pts) || ((b.gf - b.gc) - (a.gf - a.gc)));
+        if (rows[0]) winners.push(rows[0].jugador_id);
+        if (rows[1]) runnersUp.push({ jugador_id: rows[1].jugador_id, pts: rows[1].pts, dg: rows[1].gf - rows[1].gc });
+      }
+
+      // Best 4 runners-up
+      runnersUp.sort((a, b) => b.pts - a.pts || b.dg - a.dg);
+      const best4 = runnersUp.slice(0, 4).map(r => r.jugador_id);
+      const clasificados = [...winners, ...best4];
+
+      if (clasificados.length < 2) return { error: 'No hay suficientes clasificados' };
+
+      // Generate octavos matches (shuffle classified for fair draw)
+      const shuffled = [...clasificados].sort(() => Math.random() - 0.5);
+      const octavosMatches: any[] = [];
+      for (let i = 0; i < shuffled.length - 1; i += 2) {
+        octavosMatches.push({
+          liga_id: ligaId, competicion: 'fa_cup' as CompeticionLiga, fase: 'octavos' as FaseLiga,
+          jornada: null,
+          jugador_local_id: shuffled[i], jugador_visitante_id: shuffled[i + 1],
+          goles_local: null, goles_visitante: null, estado: 'pendiente',
+        });
+      }
+
+      if (octavosMatches.length > 0) {
+        const { error } = await supabase.from('liga_partidos').insert(octavosMatches);
+        if (error) throw error;
+      }
+
+      return { error: null };
+    }
+
+    // Get the current knockout phase (most recent one with matches)
     const faseOrder: FaseLiga[] = ['ronda_32', 'ronda_16', 'octavos', 'cuartos', 'semifinal', 'final'];
     let currentFase: FaseLiga | null = null;
     for (const fase of faseOrder) {

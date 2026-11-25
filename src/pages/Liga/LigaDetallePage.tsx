@@ -18,6 +18,7 @@ import {
   fetchAllJugadores,
   sustituirJugadorLiga,
 } from '../../hooks/useLiga';
+import { resolverBoletos } from '../../hooks/useBet';
 import DivisionTable from './DivisionTable';
 import FACupBracket from './FACupBracket';
 import type { LigaPartido, Jugador, DivisionLiga } from '../../types/database';
@@ -237,6 +238,9 @@ export default function LigaDetallePage() {
   const handleSave = async (p: LigaPartido) => {
     setSaving(true);
     const { error } = await registrarResultadoLiga(p.id, golesLocal, golesVisitante);
+    if (!error) {
+      await resolverBoletos(p.id);
+    }
     setSaving(false);
     if (error) showToast(error, 'error');
     else {

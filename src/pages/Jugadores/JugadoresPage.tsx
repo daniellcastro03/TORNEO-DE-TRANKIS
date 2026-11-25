@@ -48,6 +48,7 @@ interface JugadorStats {
 const FASE_LABELS: Record<string, string> = {
   grupos: 'Grupos', octavos: 'Octavos', cuartos: 'Cuartos',
   semifinal: 'Semifinal', tercer_puesto: '3er Puesto', final: 'Final',
+  liga: 'Liga', ronda_32: '32avos', ronda_16: '16avos',
 };
 
 const TROPHY_EMOJI: Record<string, string> = {
@@ -423,6 +424,50 @@ export default function JugadoresPage() {
           };
           if (histMap.has(m.jugador_local_id)) add(m.jugador_local_id, m.jugador_visitante_id, gl, gv);
           if (histMap.has(m.jugador_visitante_id)) add(m.jugador_visitante_id, m.jugador_local_id, gv, gl);
+        }
+
+        // Also fetch liga matches
+        const { data: ligaMatchesRaw } = await supabase
+          .from('liga_partidos')
+          .select('id, liga_id, jugador_local_id, jugador_visitante_id, goles_local, goles_visitante, estado, competicion, fase, jornada, created_at, ligas:liga_id (nombre)')
+          .eq('estado', 'finalizado');
+        const ligaMatches = (ligaMatchesRaw as any[]) || [];
+
+        // Process liga matches
+        for (const lm of ligaMatches) {
+          if (lm.goles_local === null || lm.goles_visitante === null) continue;
+          const gl = lm.goles_local as number, gv = lm.goles_visitante as number;
+          const ligaNombre = (lm.ligas as any)?.nombre || 'Liga';
+          const compLabel = lm.competicion === 'primera' ? '1ª División' : lm.competicion === 'segunda' ? '2ª División' : 'FA Cup';
+          const faseLabel = lm.jornada ? `J${lm.jornada}` : lm.fase;
+
+          const addLiga = (pid: string, rid: string, mg: number, tg: number) => {
+            if (!histMap.has(pid)) return;
+            const rival = playerMap.get(rid);
+            const res: 'W' | 'D' | 'L' = mg > tg ? 'W' : mg === tg ? 'D' : 'L';
+            histMap.get(pid)!.push({
+              id: lm.id,
+              torneo_id: lm.liga_id,
+              torneo_nombre: `${ligaNombre} · ${compLabel}`,
+              rival_id: rid,
+              rival_nombre: rival?.nombre || 'Jugador',
+              rival_equipo: rival?.nombre || 'Jugador',
+              rival_equipo_escudo: rival?.foto || null,
+              goles_favor: mg,
+              goles_contra: tg,
+              resultado: res,
+              fase: faseLabel,
+              created_at: lm.created_at,
+            });
+          };
+
+          if (histMap.has(lm.jugador_local_id)) addLiga(lm.jugador_local_id, lm.jugador_visitante_id, gl, gv);
+          if (histMap.has(lm.jugador_visitante_id)) addLiga(lm.jugador_visitante_id, lm.jugador_local_id, gv, gl);
+        }
+
+        // Sort all match histories chronologically
+        for (const [, mlist] of histMap.entries()) {
+          mlist.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         }
 
         const torneoCount = new Map<string, number>();

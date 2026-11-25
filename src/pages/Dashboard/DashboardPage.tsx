@@ -2,7 +2,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useMisPartidos } from '../../hooks/useMisPartidos';
 import { useTorneos } from '../../hooks/useTorneos';
 import { useNavigate } from 'react-router-dom';
-import { Trophy, Gamepad2, Target, TrendingUp, Users, ArrowRight } from 'lucide-react';
+import { Trophy, Gamepad2, Target, TrendingUp, Users, ArrowRight, Ticket } from 'lucide-react';
 import './Dashboard.css';
 
 export default function DashboardPage() {
@@ -38,6 +38,51 @@ export default function DashboardPage() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* TRANKIS BET Banner */}
+      <div
+        className="card card-glow fade-in"
+        onClick={() => navigate('/trankis-bet')}
+        role="button"
+        tabIndex={0}
+        style={{
+          marginBottom: '1.25rem',
+          padding: '1rem 1.25rem',
+          cursor: 'pointer',
+          background: 'linear-gradient(135deg, rgba(57,255,20,0.08), rgba(245,158,11,0.08))',
+          border: '1px solid rgba(57,255,20,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: 'rgba(57,255,20,0.12)', border: '1px solid rgba(57,255,20,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0,
+          }}>
+            🎰
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--color-neon)', fontFamily: 'var(--font-display)' }}>
+                TRANKIS BET
+              </h3>
+              <span style={{ fontSize: '0.6rem', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', padding: '1px 6px', borderRadius: 20, fontWeight: 700 }}>
+                OCIO · L.100 VIRTUALES
+              </span>
+            </div>
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.76rem', color: 'var(--color-text-muted)' }}>
+              Arma tu combinada de 7+ partidos por jornada (sin dinero real)
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--color-neon)', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
+          <Ticket size={16} /> Jugar <ArrowRight size={15} />
+        </div>
       </div>
 
       {/* Quick Stats */}

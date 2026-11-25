@@ -12,7 +12,7 @@ import { ArrowLeft, Plus, Users, UserPlus, Check, Repeat } from 'lucide-react';
 import '../Liga/Liga.css';
 
 const MIN_JUGADORES = 2; // mínimo para guardar (el real de la liga es 12, pero 2 permite testing)
-const MAX_JUGADORES = 16;
+const MAX_JUGADORES = 18;
 
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -244,9 +244,9 @@ export default function LigaAdminPage() {
               marginBottom: '1.25rem',
             }}>
               <div style={{ marginBottom: '0.3rem', color: 'var(--color-neon)', fontWeight: 600 }}>📋 Formato de la liga:</div>
-              <div>• Primera División: 12–16 jugadores. Los 2 últimos descienden.</div>
-              <div>• Segunda División: 12–16 jugadores. Los 2 primeros ascienden.</div>
-              <div>• FA Cup: Sorteo random de todos los jugadores (eliminación directa).</div>
+              <div>• Primera División: 12–18 jugadores. Los 2 últimos descienden.</div>
+              <div>• Segunda División: 12–18 jugadores. Los 2 primeros ascienden.</div>
+              <div>• FA Cup: 12 grupos triangulares (3 jugadores c/u). Top 1 por grupo + 4 mejores segundos = 16 pasan a Octavos.</div>
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>

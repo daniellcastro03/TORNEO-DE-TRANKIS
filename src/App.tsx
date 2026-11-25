@@ -21,6 +21,7 @@ import JugadoresAdminPage from './pages/Admin/JugadoresAdminPage';
 import LigaPage from './pages/Liga/LigaPage';
 import LigaDetallePage from './pages/Liga/LigaDetallePage';
 import LigaAdminPage from './pages/Admin/LigaAdminPage';
+import TranciBetPage from './pages/Bet/TranciBetPage';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -127,6 +128,7 @@ function AppRoutes() {
         {/* Liga Mode */}
         <Route path="/liga" element={<LigaPage />} />
         <Route path="/liga/:id" element={<LigaDetallePage />} />
+        <Route path="/trankis-bet" element={<TranciBetPage />} />
         <Route
           path="/admin/liga"
           element={

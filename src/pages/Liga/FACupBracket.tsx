@@ -10,6 +10,7 @@ interface FACupBracketProps {
 }
 
 const FASE_LABELS: Record<string, string> = {
+  liga: '⚽ Fase de Grupos',
   ronda_32: '32avos de Final',
   ronda_16: '16avos de Final',
   octavos: 'Octavos de Final',
@@ -18,7 +19,7 @@ const FASE_LABELS: Record<string, string> = {
   final: '⚽ Final',
 };
 
-const FASE_ORDER = ['ronda_32', 'ronda_16', 'octavos', 'cuartos', 'semifinal', 'final'];
+const FASE_ORDER = ['liga', 'ronda_32', 'ronda_16', 'octavos', 'cuartos', 'semifinal', 'final'];
 
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -98,6 +99,94 @@ export default function FACupBracket({ partidos, jugadores }: FACupBracketProps)
         const rondaPartidos = faCupPartidos.filter(p => p.fase === fase);
         const done = rondaPartidos.filter(p => p.estado === 'finalizado').length;
         const isCollapsed = collapsed[fase];
+
+        // Group stage: render by group number (jornada)
+        if (fase === 'liga') {
+          const grupos = [...new Set(rondaPartidos.map(p => p.jornada))].sort((a, b) => (a ?? 0) - (b ?? 0));
+          return (
+            <div key={fase} className="fa-cup-round">
+              <div
+                className="fa-cup-round-title"
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => setCollapsed(prev => ({ ...prev, [fase]: !prev[fase] }))}
+              >
+                {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                {FASE_LABELS[fase]}
+                <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                  {done}/{rondaPartidos.length}
+                  {done === rondaPartidos.length && rondaPartidos.length > 0 && ' ✅'}
+                </span>
+              </div>
+
+              {!isCollapsed && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {grupos.map(grupoNum => {
+                    const grupoPartidos = rondaPartidos.filter(p => p.jornada === grupoNum);
+                    const grupoDone = grupoPartidos.filter(p => p.estado === 'finalizado').length;
+                    return (
+                      <div key={grupoNum}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+                          Grupo {grupoNum} · {grupoDone}/{grupoPartidos.length} {grupoDone === grupoPartidos.length && grupoPartidos.length > 0 ? '✅' : ''}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.45rem' }}>
+                          {grupoPartidos.map(p => {
+                            const local = getJugador(p.jugador_local_id);
+                            const visita = getJugador(p.jugador_visitante_id);
+                            const isLocalWin = p.estado === 'finalizado' && p.goles_local! > p.goles_visitante!;
+                            const isVisitaWin = p.estado === 'finalizado' && p.goles_visitante! > p.goles_local!;
+                            const isMe = p.jugador_local_id === user?.id || p.jugador_visitante_id === user?.id;
+                            return (
+                              <div
+                                key={p.id}
+                                className="liga-match-card"
+                                style={{
+                                  border: isMe ? '1px solid var(--color-border-neon)' : undefined,
+                                  background: isMe ? 'rgba(57,255,20,0.02)' : undefined,
+                                }}
+                              >
+                                <div className="liga-match-team" style={{ opacity: isVisitaWin ? 0.45 : 1 }}>
+                                  {local?.jugador_foto ? (
+                                    <img src={local.jugador_foto} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                                  ) : (
+                                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg,#2bcc10,#39FF14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 800, color: '#000', flexShrink: 0 }}>
+                                      {getInitials(local?.jugador_nombre || '?')}
+                                    </div>
+                                  )}
+                                  <span className="liga-match-team-name" style={{ fontWeight: isLocalWin ? 700 : 500 }}>
+                                    {local?.jugador_nombre || '?'}
+                                  </span>
+                                </div>
+                                {p.estado === 'finalizado' ? (
+                                  <div className="liga-match-score">
+                                    {p.goles_local} - {p.goles_visitante}
+                                  </div>
+                                ) : (
+                                  <div className="liga-match-vs">vs</div>
+                                )}
+                                <div className="liga-match-team away" style={{ opacity: isLocalWin ? 0.45 : 1 }}>
+                                  <span className="liga-match-team-name" style={{ fontWeight: isVisitaWin ? 700 : 500 }}>
+                                    {visita?.jugador_nombre || '?'}
+                                  </span>
+                                  {visita?.jugador_foto ? (
+                                    <img src={visita.jugador_foto} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                                  ) : (
+                                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg,#2bcc10,#39FF14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 800, color: '#000', flexShrink: 0 }}>
+                                      {getInitials(visita?.jugador_nombre || '?')}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
 
         return (
           <div key={fase} className="fa-cup-round">
