@@ -973,10 +973,13 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
   refetchJornadas: () => void; userId: string;
 }) {
   const { partidos, loading, refetch: refetchPartidos } = useBetJornadaDetalle(jornadaId);
-  const { boletos, loading: boletosLoading, refetch: refetchBoletos } = useAllBoletos(jornadaId);
-  const { boletos: ligaBoletos, refetch: refetchLigaBoletos } = useBoletosPorLiga(ligaId);
+  const { boletos, loading: boletosLoading } = useAllBoletos(jornadaId);
+  const { boletos: ligaBoletos, loading: ligaBoletosLoading } = useBoletosPorLiga(ligaId);
   const [adminTab, setAdminTab] = useState<'cuotas' | 'boletos'>('cuotas');
   const [expandedBoletoId, setExpandedBoletoId] = useState<string | null>(null);
+  const [filtroJugadorId, setFiltroJugadorId] = useState<string>('todos');
+  const [filtroScope, setFiltroScope] = useState<'jornada' | 'torneo'>('jornada');
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'pendiente' | 'ganado' | 'perdido'>('todos');
 
   // Create jornada
   const [showCreateJornada, setShowCreateJornada] = useState(false);
@@ -1310,65 +1313,158 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
       )}
 
       {/* Boletos Admin View */}
-      {adminTab === 'boletos' && (
-        <div>
-          {/* Top ranking */}
-          {topList.length > 0 && (
-            <div className="card" style={{ padding: '1rem', marginBottom: '1rem', border: '1px solid rgba(255,215,0,0.25)', background: 'rgba(255,215,0,0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <TrendingUp size={16} color="#FFD700" />
-                <h4 style={{ margin: 0, color: '#FFD700', fontSize: '0.9rem' }}>🏆 Top Apostadores (combinadas ganadoras)</h4>
-              </div>
-              {topList.map(([_, p], i) => (
-                <div key={_} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: i < topList.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                  <span style={{ width: 22, fontSize: '0.75rem', fontWeight: 800, color: i < 3 ? '#FFD700' : 'var(--color-text-muted)' }}>#{i + 1}</span>
-                  <Avatar foto={p.foto} nombre={p.nombre} size={26} />
-                  <span style={{ flex: 1, fontSize: '0.78rem', fontWeight: 600 }}>{p.nombre}</span>
-                  <span style={{ fontSize: '0.72rem', color: '#39FF14', fontWeight: 700 }}>{p.ganados} ganadas</span>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>L. {p.ganancia.toFixed(0)}</span>
+      {adminTab === 'boletos' && (() => {
+        const jornadaMap = new Map(jornadas.map(j => [j.id, j.nombre]));
+        const baseBoletos = (filtroScope === 'torneo' ? ligaBoletos : boletos).map((b: any) => ({
+          ...b,
+          jornada_nombre: b.jornada_nombre || jornadaMap.get(b.jornada_id) || 'Jornada',
+        }));
+
+        // Unique players with boletos in current scope
+        const jugadoresMap = new Map<string, { id: string; nombre: string; count: number }>();
+        for (const b of baseBoletos) {
+          const jid = b.jugador_id;
+          const prev = jugadoresMap.get(jid);
+          if (prev) prev.count += 1;
+          else jugadoresMap.set(jid, { id: jid, nombre: b.jugador_nombre || '?', count: 1 });
+        }
+        const jugadoresLista = [...jugadoresMap.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+        const boletosFiltrados = baseBoletos.filter((b: any) => {
+          if (filtroJugadorId !== 'todos' && b.jugador_id !== filtroJugadorId) return false;
+          if (filtroEstado !== 'todos' && b.estado !== filtroEstado) return false;
+          return true;
+        });
+
+        const isLoading = filtroScope === 'torneo' ? ligaBoletosLoading : boletosLoading;
+
+        return (
+          <div>
+            {/* Top ranking */}
+            {topList.length > 0 && (
+              <div className="card" style={{ padding: '1rem', marginBottom: '1rem', border: '1px solid rgba(255,215,0,0.25)', background: 'rgba(255,215,0,0.03)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <TrendingUp size={16} color="#FFD700" />
+                  <h4 style={{ margin: 0, color: '#FFD700', fontSize: '0.9rem' }}>🏆 Top Apostadores (combinadas ganadoras)</h4>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {boletosLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>}
-
-          {/* All boletos */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {boletos.map(b => {
-              const badge = estadoBadge(b.estado);
-              const sels = (b as any).bet_selecciones || [];
-              const isExp = expandedBoletoId === b.id;
-              return (
-                <div key={b.id} className="card" style={{ padding: 0, overflow: 'hidden', border: `1px solid ${badge.border}` }}>
-                  <div
-                    onClick={() => setExpandedBoletoId(isExp ? null : b.id)}
-                    style={{ padding: '0.75rem 1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                  >
-                    <Avatar foto={(b as any).jugador_foto} nombre={(b as any).jugador_nombre || '?'} size={28} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{(b as any).jugador_nombre}</div>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
-                        {sels.length} picks · Cuota: {Number(b.cuota_total).toFixed(2)} · L. {Number(b.ganancia_potencial).toFixed(2)}
-                      </div>
-                    </div>
-                    <span style={{ color: badge.color, fontSize: '0.72rem', fontWeight: 700 }}>{badge.label}</span>
-                    {isExp ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                {topList.map(([_, p], i) => (
+                  <div key={_} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0', borderBottom: i < topList.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                    <span style={{ width: 22, fontSize: '0.75rem', fontWeight: 800, color: i < 3 ? '#FFD700' : 'var(--color-text-muted)' }}>#{i + 1}</span>
+                    <Avatar foto={p.foto} nombre={p.nombre} size={26} />
+                    <span style={{ flex: 1, fontSize: '0.78rem', fontWeight: 600 }}>{p.nombre}</span>
+                    <span style={{ fontSize: '0.72rem', color: '#39FF14', fontWeight: 700 }}>{p.ganados} ganadas</span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>L. {p.ganancia.toFixed(0)}</span>
                   </div>
+                ))}
+              </div>
+            )}
 
-                  {isExp && sels.length > 0 && (
-                    <div style={{ padding: '0.6rem 0.85rem 0.75rem', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                      {sels.map((s: any) => (
-                        <CouponPickRow key={s.id} seleccion={s} />
-                      ))}
+            {/* Sección con menú desplegable para ver boletos de otras personas */}
+            <div className="card" style={{ padding: '0.9rem 1rem', marginBottom: '1rem', border: '1px solid var(--color-border-neon)' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-neon)', marginBottom: '0.65rem' }}>
+                👥 Ver Boletos de Jugadores
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <select
+                  value={filtroJugadorId}
+                  onChange={e => { setFiltroJugadorId(e.target.value); setExpandedBoletoId(null); }}
+                  style={{
+                    flex: 1, minWidth: 190, padding: '0.4rem 0.65rem', borderRadius: 8,
+                    background: 'var(--color-bg)', border: '1px solid var(--color-border)',
+                    color: 'var(--color-text)', fontSize: '0.8rem', fontWeight: 600,
+                  }}
+                >
+                  <option value="todos">Todos los jugadores ({baseBoletos.length} boletos)</option>
+                  {jugadoresLista.map(j => (
+                    <option key={j.id} value={j.id}>
+                      {j.nombre} ({j.count} {j.count === 1 ? 'boleto' : 'boletos'})
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={filtroScope}
+                  onChange={e => { setFiltroScope(e.target.value as 'jornada' | 'torneo'); setFiltroJugadorId('todos'); setExpandedBoletoId(null); }}
+                  style={{
+                    padding: '0.4rem 0.65rem', borderRadius: 8,
+                    background: 'var(--color-bg)', border: '1px solid var(--color-border)',
+                    color: 'var(--color-text)', fontSize: '0.8rem',
+                  }}
+                >
+                  <option value="jornada">📅 Esta jornada</option>
+                  <option value="torneo">🏆 Todo el torneo</option>
+                </select>
+
+                <select
+                  value={filtroEstado}
+                  onChange={e => setFiltroEstado(e.target.value as any)}
+                  style={{
+                    padding: '0.4rem 0.65rem', borderRadius: 8,
+                    background: 'var(--color-bg)', border: '1px solid var(--color-border)',
+                    color: 'var(--color-text)', fontSize: '0.8rem',
+                  }}
+                >
+                  <option value="todos">Todos los estados</option>
+                  <option value="pendiente">⏳ Pendientes</option>
+                  <option value="ganado">✅ Ganados</option>
+                  <option value="perdido">❌ Perdidos</option>
+                </select>
+              </div>
+            </div>
+
+            {isLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>}
+
+            {!isLoading && boletosFiltrados.length === 0 && (
+              <div className="card empty-state" style={{ padding: '2rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '0.4rem' }}>🎫</div>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', margin: 0 }}>
+                  No hay boletos con los filtros seleccionados.
+                </p>
+              </div>
+            )}
+
+            {/* All boletos */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              {boletosFiltrados.map((b: any) => {
+                const badge = estadoBadge(b.estado);
+                const sels = b.bet_selecciones || [];
+                const isExp = expandedBoletoId === b.id;
+                return (
+                  <div key={b.id} className="card" style={{ padding: 0, overflow: 'hidden', border: `1px solid ${badge.border}` }}>
+                    <div
+                      onClick={() => setExpandedBoletoId(isExp ? null : b.id)}
+                      style={{ padding: '0.75rem 1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.55rem', background: badge.bg }}
+                    >
+                      <Avatar foto={b.jugador_foto} nombre={b.jugador_nombre || '?'} size={30} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span>{b.jugador_nombre}</span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                            · 📅 {b.jornada_nombre}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginTop: '0.1rem' }}>
+                          {sels.length} picks · Cuota: <strong style={{ color: 'var(--color-neon)' }}>{Number(b.cuota_total).toFixed(2)}</strong> · L. {Number(b.ganancia_potencial).toFixed(2)}
+                        </div>
+                      </div>
+                      <span style={{ color: badge.color, fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}>{badge.label}</span>
+                      {isExp ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+
+                    {isExp && sels.length > 0 && (
+                      <div style={{ padding: '0.65rem 0.85rem 0.75rem', borderTop: `1px dashed ${badge.border}`, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                        {sels.map((s: any) => (
+                          <CouponPickRow key={s.id} seleccion={s} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
