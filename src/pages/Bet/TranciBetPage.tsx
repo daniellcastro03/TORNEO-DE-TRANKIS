@@ -31,8 +31,6 @@ function getInitials(n: string) {
 
 const MERCADO_LABELS: Record<BetMercado, string> = {
   '1x2': '1X2',
-  goles_local: 'Goles Local',
-  goles_visitante: 'Goles Visitante',
   total_goles: 'Total de Goles',
 };
 
@@ -486,6 +484,7 @@ function PartidoCuotasCard({ partido, isSelected, toggleCuota }: {
   const [expanded, setExpanded] = useState(true);
   const cuotasByMercado = new Map<string, BetCuota[]>();
   for (const c of partido.cuotas) {
+    if (c.mercado !== '1x2' && c.mercado !== 'total_goles') continue;
     if (!cuotasByMercado.has(c.mercado)) cuotasByMercado.set(c.mercado, []);
     cuotasByMercado.get(c.mercado)!.push(c);
   }
@@ -843,12 +842,6 @@ function CouponPickRow({ seleccion }: { seleccion: any }) {
     } else {
       targetNombre = 'Empate (X)';
     }
-  } else if (mercado === 'goles_local') {
-    targetFoto = localFoto;
-    targetNombre = `${localNombre}: ${opcion} goles`;
-  } else if (mercado === 'goles_visitante') {
-    targetFoto = visitanteFoto;
-    targetNombre = `${visitanteNombre}: ${opcion} goles`;
   } else if (mercado === 'total_goles') {
     showBothAvatars = true;
     targetNombre = `Total goles: ${opcion}`;
@@ -916,10 +909,10 @@ function CouponPickRow({ seleccion }: { seleccion: any }) {
                 <Avatar foto={visitanteFoto} nombre={visitanteNombre} size={22} />
               </div>
             </div>
-          ) : targetFoto !== null || (mercado === '1x2' && opcion !== 'X') || mercado === 'goles_local' || mercado === 'goles_visitante' ? (
+          ) : targetFoto !== null || (mercado === '1x2' && opcion !== 'X') ? (
             <Avatar
               foto={targetFoto}
-              nombre={opcion === '1' || mercado === 'goles_local' ? localNombre : opcion === '2' || mercado === 'goles_visitante' ? visitanteNombre : opcion}
+              nombre={opcion === '1' ? localNombre : opcion === '2' ? visitanteNombre : opcion}
               size={24}
             />
           ) : (
@@ -1249,13 +1242,6 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
                     </div>
                   )}
                   {mercadoActivo === 'total_goles' && (
-                    <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                      {OPCIONES_TOTAL_GOLES.map(o => (
-                        <button key={o} onClick={() => setNuevaOpcion(o)} style={{ padding: '0.25rem 0.5rem', borderRadius: 6, border: 'none', cursor: 'pointer', background: nuevaOpcion === o ? 'rgba(57,255,20,0.15)' : 'var(--color-bg-elevated)', color: nuevaOpcion === o ? 'var(--color-neon)' : 'var(--color-text-muted)', fontSize: '0.68rem', outline: '1px solid var(--color-border)' }}>{o}</button>
-                      ))}
-                    </div>
-                  )}
-                  {(mercadoActivo === 'goles_local' || mercadoActivo === 'goles_visitante') && (
                     <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                       {OPCIONES_TOTAL_GOLES.map(o => (
                         <button key={o} onClick={() => setNuevaOpcion(o)} style={{ padding: '0.25rem 0.5rem', borderRadius: 6, border: 'none', cursor: 'pointer', background: nuevaOpcion === o ? 'rgba(57,255,20,0.15)' : 'var(--color-bg-elevated)', color: nuevaOpcion === o ? 'var(--color-neon)' : 'var(--color-text-muted)', fontSize: '0.68rem', outline: '1px solid var(--color-border)' }}>{o}</button>

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 // ── Types ──────────────────────────────────────────────────
 
-export type BetMercado = '1x2' | 'goles_local' | 'goles_visitante' | 'total_goles';
+export type BetMercado = '1x2' | 'total_goles';
 export type BetEstado = 'pendiente' | 'ganado' | 'perdido';
 export type SelEstado = 'pendiente' | 'ganada' | 'perdida';
 
@@ -343,14 +343,6 @@ export async function autoCargarPartidosYCuotas(
         { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+2.5', cuota: 1.80 },
         { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+3.5', cuota: 1.80 },
         { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+4.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'goles_local', opcion: '+1.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'goles_local', opcion: '+2.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'goles_local', opcion: '+3.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'goles_local', opcion: '+4.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+1.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+2.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+3.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'goles_visitante', opcion: '+4.5', cuota: 1.80 },
       );
     }
     const { error: cErr } = await supabase.from('bet_cuotas').insert(defaultCuotas);
@@ -469,12 +461,6 @@ export async function resolverBoletos(ligaPartidoId: string): Promise<{ error: s
           const total = gl + gv;
           const threshold = Math.abs(parseFloat(cuota.opcion));
           ganada = cuota.opcion.startsWith('+') ? total > threshold : total < threshold;
-        } else if (cuota.mercado === 'goles_local') {
-          const threshold = Math.abs(parseFloat(cuota.opcion));
-          ganada = cuota.opcion.startsWith('+') ? gl > threshold : gl < threshold;
-        } else if (cuota.mercado === 'goles_visitante') {
-          const threshold = Math.abs(parseFloat(cuota.opcion));
-          ganada = cuota.opcion.startsWith('+') ? gv > threshold : gv < threshold;
         }
 
         // Update all selecciones with this cuota
