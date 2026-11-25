@@ -359,6 +359,28 @@ export async function colocarBoleto(
     .eq('jugador_id', jugadorId);
   if ((count ?? 0) > 0) return { data: null, error: '¡Ya tienes un boleto en esta jornada! Solo se permite 1 por jornada.' };
 
+  // Check that none of the selected cuotas belong to finished matches
+  const cuotaIds = selecciones.map(s => s.bet_cuota_id);
+  const { data: cuotasData, error: cuotasErr } = await supabase
+    .from('bet_cuotas')
+    .select('id, bet_partido_id')
+    .in('id', cuotaIds);
+  if (cuotasErr) return { data: null, error: cuotasErr.message };
+
+  const betPartidoIds = [...new Set((cuotasData || []).map((c: any) => c.bet_partido_id))];
+  if (betPartidoIds.length > 0) {
+    const { data: bpList, error: bpErr } = await supabase
+      .from('bet_partidos')
+      .select('id, liga_partidos:liga_partido_id(estado)')
+      .in('id', betPartidoIds);
+    if (bpErr) return { data: null, error: bpErr.message };
+
+    const finalizados = (bpList || []).filter((bp: any) => bp.liga_partidos?.estado === 'finalizado');
+    if (finalizados.length > 0) {
+      return { data: null, error: `Tu boleto incluye ${finalizados.length} partido(s) ya finalizado(s). Solo se puede apostar a partidos pendientes.` };
+    }
+  }
+
   const ganancia = parseFloat((100 * cuotaTotal).toFixed(2));
   const { data: boleto, error: bErr } = await supabase
     .from('bet_boletos')
