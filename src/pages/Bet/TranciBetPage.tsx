@@ -278,10 +278,17 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
   );
 
   if (partidos.length === 0) return (
-    <div className="card empty-state" style={{ padding: '2rem', textAlign: 'center' }}>
-      <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
-      <h3>Sin partidos disponibles</h3>
-      <p style={{ color: 'var(--color-text-muted)' }}>El admin aún no ha cargado las cuotas de esta jornada</p>
+    <div className="card empty-state" style={{
+      padding: '2rem', textAlign: 'center',
+      border: '1px solid rgba(255,59,59,0.35)',
+      background: 'rgba(255,59,59,0.04)',
+    }}>
+      <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>⛔</div>
+      <h3 style={{ color: '#FF3B3B' }}>Apuestas no disponibles</h3>
+      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+        Esta jornada <strong>no tiene partidos cargados</strong>.<br />
+        No es posible apostar hasta que el admin registre los partidos y cuotas.
+      </p>
     </div>
   );
 
