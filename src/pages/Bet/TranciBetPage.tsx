@@ -15,6 +15,8 @@ import {
   colocarBoleto,
   toggleJornadaActiva,
   autoCargarPartidosYCuotas,
+  TOTAL_GOLES_FIJO,
+  MAX_TOTAL_GOLES_POR_BOLETO,
   type BetCuota,
   type BetMercado,
   type BetPartidoDetalle,
@@ -314,8 +316,17 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
       showToast('⛔ No puedes apostar a un partido ya finalizado', 'error');
       return;
     }
+    const key = cuota.bet_partido_id + '_' + cuota.mercado;
+    const isDeselecting = selecciones[key]?.id === cuota.id;
+    const isReplacingSameMatchMarket = Boolean(selecciones[key]);
+    const currentTotalGoles = Object.values(selecciones).filter(c => c.mercado === 'total_goles').length;
+
+    if (!isDeselecting && !isReplacingSameMatchMarket && cuota.mercado === 'total_goles' && currentTotalGoles >= MAX_TOTAL_GOLES_POR_BOLETO) {
+      showToast(`⚠️ Máximo ${MAX_TOTAL_GOLES_POR_BOLETO} picks de Total de Goles por boleto`, 'error');
+      return;
+    }
+
     setSelecciones(prev => {
-      const key = cuota.bet_partido_id + '_' + cuota.mercado;
       const existing = Object.values(prev).find(c => c.bet_partido_id === cuota.bet_partido_id && c.mercado === cuota.mercado);
       if (existing?.id === cuota.id) {
         const next = { ...prev };
@@ -335,6 +346,7 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
   const gananciaEstimada = (100 * totalCuota).toFixed(2);
   const totalSels = Object.keys(selecciones).length;
   const uniquePartidosCount = new Set(Object.values(selecciones).map(c => c.bet_partido_id)).size;
+  const totalGolesCount = Object.values(selecciones).filter(c => c.mercado === 'total_goles').length;
 
   const handleApostar = async () => {
     if (!jornadaActiva) {
@@ -347,6 +359,10 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
     });
     if (finishedSelected.length > 0) {
       showToast('⛔ Tu combinada incluye partidos ya finalizados. Quítalos para continuar.', 'error');
+      return;
+    }
+    if (totalGolesCount > MAX_TOTAL_GOLES_POR_BOLETO) {
+      showToast(`⚠️ Máximo ${MAX_TOTAL_GOLES_POR_BOLETO} picks de Total de Goles por boleto`, 'error');
       return;
     }
     if (uniquePartidosCount < 7) {
@@ -427,6 +443,13 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
                 }}>
                   {uniquePartidosCount} partido{uniquePartidosCount !== 1 ? 's' : ''} ({totalSels} picks) {uniquePartidosCount < 7 ? `· mín 7` : '✓'}
                 </span>
+                <span style={{
+                  background: totalGolesCount >= MAX_TOTAL_GOLES_POR_BOLETO ? 'rgba(212,160,23,0.18)' : 'rgba(255,255,255,0.06)',
+                  color: totalGolesCount >= MAX_TOTAL_GOLES_POR_BOLETO ? '#d4a017' : 'var(--color-text-muted)',
+                  padding: '1px 7px', borderRadius: 20, fontSize: '0.68rem', fontWeight: 700,
+                }}>
+                  ⚽ Total Goles: {totalGolesCount}/{MAX_TOTAL_GOLES_POR_BOLETO}
+                </span>
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
                 Cuota total: <strong style={{ color: 'var(--color-neon)', fontFamily: 'var(--font-display)' }}>{totalCuota.toFixed(2)}</strong>
@@ -465,6 +488,7 @@ function ApostarTab({ jornadaId, jugadorId, jornadaActiva, showToast }: {
         <strong style={{ color: 'var(--color-neon)' }}>📋 Reglas TRANKIS BET:</strong>
         <div style={{ marginTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
           <span>• Mínimo 7 partidos en tu combinada</span>
+          <span>• Máximo {MAX_TOTAL_GOLES_POR_BOLETO} picks en el mercado Total de Goles por boleto</span>
           <span>• Monto fijo: L.100 virtuales por boleto</span>
           <span>• Solo puedes seleccionar 1 cuota por mercado y partido</span>
           <span>• El boleto se resuelve automáticamente cuando se ingresan los resultados</span>
@@ -1244,7 +1268,16 @@ function AdminBetTab({ ligaId, jornadaId, jornadas, showToast, refetchJornadas, 
                   {mercadoActivo === 'total_goles' && (
                     <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                       {OPCIONES_TOTAL_GOLES.map(o => (
-                        <button key={o} onClick={() => setNuevaOpcion(o)} style={{ padding: '0.25rem 0.5rem', borderRadius: 6, border: 'none', cursor: 'pointer', background: nuevaOpcion === o ? 'rgba(57,255,20,0.15)' : 'var(--color-bg-elevated)', color: nuevaOpcion === o ? 'var(--color-neon)' : 'var(--color-text-muted)', fontSize: '0.68rem', outline: '1px solid var(--color-border)' }}>{o}</button>
+                        <button
+                          key={o}
+                          onClick={() => {
+                            setNuevaOpcion(o);
+                            if (TOTAL_GOLES_FIJO[o]) setNuevaCuota(TOTAL_GOLES_FIJO[o].toFixed(2));
+                          }}
+                          style={{ padding: '0.25rem 0.5rem', borderRadius: 6, border: 'none', cursor: 'pointer', background: nuevaOpcion === o ? 'rgba(57,255,20,0.15)' : 'var(--color-bg-elevated)', color: nuevaOpcion === o ? 'var(--color-neon)' : 'var(--color-text-muted)', fontSize: '0.68rem', outline: '1px solid var(--color-border)' }}
+                        >
+                          {o} ({(TOTAL_GOLES_FIJO[o] ?? 1.8).toFixed(2)})
+                        </button>
                       ))}
                     </div>
                   )}

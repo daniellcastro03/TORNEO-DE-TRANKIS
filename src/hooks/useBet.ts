@@ -7,6 +7,15 @@ export type BetMercado = '1x2' | 'total_goles';
 export type BetEstado = 'pendiente' | 'ganado' | 'perdido';
 export type SelEstado = 'pendiente' | 'ganada' | 'perdida';
 
+export const TOTAL_GOLES_FIJO: Record<string, number> = {
+  '+1.5': 1.20,
+  '+2.5': 1.40,
+  '+3.5': 1.60,
+  '+4.5': 2.09,
+};
+
+export const MAX_TOTAL_GOLES_POR_BOLETO = 3;
+
 export interface BetJornada {
   id: string;
   liga_id: string;
@@ -279,6 +288,20 @@ export async function agregarPartidoBet(
     .from('bet_partidos')
     .insert({ jornada_id: jornadaId, liga_partido_id: ligaPartidoId })
     .select().single();
+  if (!error && data) {
+    const bpId = (data as any).id;
+    await supabase.from('bet_cuotas').insert([
+      { bet_partido_id: bpId, mercado: '1x2', opcion: '1', cuota: 1.80 },
+      { bet_partido_id: bpId, mercado: '1x2', opcion: 'X', cuota: 1.80 },
+      { bet_partido_id: bpId, mercado: '1x2', opcion: '2', cuota: 1.80 },
+      ...Object.entries(TOTAL_GOLES_FIJO).map(([opcion, cuota]) => ({
+        bet_partido_id: bpId,
+        mercado: 'total_goles',
+        opcion,
+        cuota,
+      })),
+    ]);
+  }
   return { data, error: error?.message || null };
 }
 
@@ -339,10 +362,10 @@ export async function autoCargarPartidosYCuotas(
         { bet_partido_id: bp.id, mercado: '1x2', opcion: '1', cuota: 1.80 },
         { bet_partido_id: bp.id, mercado: '1x2', opcion: 'X', cuota: 1.80 },
         { bet_partido_id: bp.id, mercado: '1x2', opcion: '2', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+1.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+2.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+3.5', cuota: 1.80 },
-        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+4.5', cuota: 1.80 },
+        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+1.5', cuota: TOTAL_GOLES_FIJO['+1.5'] },
+        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+2.5', cuota: TOTAL_GOLES_FIJO['+2.5'] },
+        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+3.5', cuota: TOTAL_GOLES_FIJO['+3.5'] },
+        { bet_partido_id: bp.id, mercado: 'total_goles', opcion: '+4.5', cuota: TOTAL_GOLES_FIJO['+4.5'] },
       );
     }
     const { error: cErr } = await supabase.from('bet_cuotas').insert(defaultCuotas);
@@ -377,13 +400,18 @@ export async function colocarBoleto(
     .eq('jugador_id', jugadorId);
   if ((count ?? 0) > 0) return { data: null, error: '¡Ya tienes un boleto en esta jornada! Solo se permite 1 por jornada.' };
 
-  // Check that none of the selected cuotas belong to finished matches & at least 7 distinct matches
+  // Check that none of the selected cuotas belong to finished matches & at least 7 distinct matches & max 3 total_goles
   const cuotaIds = selecciones.map(s => s.bet_cuota_id);
   const { data: cuotasData, error: cuotasErr } = await supabase
     .from('bet_cuotas')
-    .select('id, bet_partido_id')
+    .select('id, bet_partido_id, mercado')
     .in('id', cuotaIds);
   if (cuotasErr) return { data: null, error: cuotasErr.message };
+
+  const totalGolesCount = (cuotasData || []).filter((c: any) => c.mercado === 'total_goles').length;
+  if (totalGolesCount > MAX_TOTAL_GOLES_POR_BOLETO) {
+    return { data: null, error: `Máximo ${MAX_TOTAL_GOLES_POR_BOLETO} picks permitidos en el mercado Total de Goles por boleto.` };
+  }
 
   const betPartidoIds = [...new Set((cuotasData || []).map((c: any) => c.bet_partido_id))];
   if (betPartidoIds.length < 7) {
